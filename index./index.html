@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>九巴實時預報 APP 1933 Lite</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --card-border: #2a2a2a;
+            --primary-red: #e60012;
+            --accent-yellow: #ffcc00;
+            --text-main: #ffffff;
+            --text-muted: #aaaaaa;
+            --nav-bg: #181818;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Microsoft JhengHei", sans-serif;
+            background-color: #000000;
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-header {
+            background-color: var(--nav-bg);
+            padding: 14px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--card-border);
+            flex-shrink: 0;
+        }
+
+        .app-header .logo {
+            font-size: 16px;
+            font-weight: 800;
+            color: var(--primary-red);
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .clock-info {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .main-content {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .app-view {
+            display: none;
+            height: 100%;
+            width: 100%;
+            overflow-y: auto;
+            padding: 12px;
+            padding-bottom: 75px;
+        }
+
+        .app-view.active {
+            display: block;
+        }
+
+        .search-wrapper {
+            position: relative;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .search-input-box {
+            position: relative;
+            flex: 1;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 16px 12px 38px;
+            background-color: #282828;
+            border: 1px solid #3a3a3a;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: bold;
+            text-transform: uppercase;
+            outline: none;
+        }
+
+        .search-input::placeholder {
+            color: #777777;
+            text-transform: none;
+            font-weight: normal;
+        }
+
+        .search-icon-svg {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            fill: var(--text-muted);
+        }
+
+        .dir-tabs {
+            display: none;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .dir-btn {
+            flex: 1;
+            padding: 10px;
+            background-color: #252525;
+            border: 1px solid var(--card-border);
+            color: var(--text-muted);
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .dir-btn.active {
+            background-color: var(--primary-red);
+            color: #ffffff;
+            border-color: var(--primary-red);
+        }
+
+        .view-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: var(--accent-yellow);
+            margin-bottom: 10px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .route-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            background-color: var(--card-border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .card-item {
+            background-color: var(--card-bg);
+            padding: 12px 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .card-item:active {
+            background-color: #282828;
+        }
+
+        .card-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .route-no {
+            font-size: 20px;
+            font-weight: 800;
+            color: #ffffff;
+            min-width: 50px;
+        }
+
+        .route-company {
+            font-size: 10px;
+            color: #888888;
+            margin-top: -2px;
+        }
+
+        .route-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .dest-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #ffffff;
+        }
+
+        .via-info {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .card-right {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            align-items: flex-end;
+        }
+
+        .eta-main {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--accent-yellow);
+        }
+
+        .eta-sub {
+            font-size: 12px;
+            color: #888888;
+        }
+
+        .fav-btn {
+            background: none;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+        }
+
+        .fav-btn svg {
+            width: 18px;
+            height: 18px;
+            fill: none;
+            stroke: #777777;
+            stroke-width: 2;
+        }
+
+        .fav-btn.active svg {
+            fill: var(--primary-red);
+            stroke: var(--primary-red);
+        }
+
+        #view-map {
+            padding: 0;
+        }
+
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+
+        .status-text {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            padding: 20px 0;
+        }
+
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background-color: var(--nav-bg);
+            border-top: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+            color: #666666;
+            font-size: 11px;
+            cursor: pointer;
+            width: 25%;
+            padding: 6px 0;
+        }
+
+        .nav-item.active {
+            color: var(--accent-yellow);
+        }
+
+        .nav-icon {
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: #666666;
+            stroke-width: 2;
+        }
+
+        .nav-item.active .nav-icon {
+            stroke: var(--accent-yellow);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <div class="app-header">
+            <div class="logo">APP 1933 LITE</div>
+            <div class="clock-info" id="clock">--:--</div>
+        </div>
+
+        <div class="main-content">
+            <div id="view-search" class="app-view active">
+                <div class="search-wrapper">
+                    <div class="search-input-box">
+                        <svg class="search-icon-svg" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                        <input type="text" id="routeInput" class="search-input" placeholder="搜尋路線 (例如 1A, 273A)" oninput="handleSearchInput()">
+                    </div>
+                </div>
+
+                <div id="dirTabs" class="dir-tabs"></div>
+
+                <div class="view-title" id="searchHeaderTitle">熱門路線</div>
+                <div id="statusMsgSearch" class="status-text">載入數據中...</div>
+                <div id="searchList" class="route-list"></div>
+            </div>
+
+            <div id="view-nearby" class="app-view">
+                <div class="view-title">附近巴士站</div>
+                <div id="statusMsgNearby" class="status-text">正在獲取位置...</div>
+                <div id="nearbyList" class="route-list"></div>
+            </div>
+
+            <div id="view-map" class="app-view">
+                <div id="map"></div>
+            </div>
+
+            <div id="view-fav" class="app-view">
+                <div class="view-title">已收藏路線</div>
+                <div id="statusMsgFav" class="status-text">尚無收藏路線</div>
+                <div id="favList" class="route-list"></div>
+            </div>
+        </div>
+
+        <div class="bottom-nav">
+            <div id="nav-search" class="nav-item active" onclick="switchMainTab('search')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                <span>搜尋</span>
+            </div>
+            <div id="nav-nearby" class="nav-item" onclick="switchMainTab('nearby')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span>附近</span>
+            </div>
+            <div id="nav-map" class="nav-item" onclick="switchMainTab('map')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                <span>地圖</span>
+            </div>
+            <div id="nav-fav" class="nav-item" onclick="switchMainTab('fav')">
+                <svg class="nav-icon" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg>
+                <span>收藏</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allStopsMap = {};
+        let allRoutesData = [];
+        let isDataReady = false;
+        let refreshInterval = null;
+        let map, routeLayerGroup;
+        let favorites = JSON.parse(localStorage.getItem('kmb_favorites') || '[]');
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('clock').textContent = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([22.3193, 114.1694], 12);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19
+            }).addTo(map);
+            routeLayerGroup = L.featureGroup().addTo(map);
+        }
+
+        async function initApp() {
+            try {
+                const [stopsRes, routesRes] = await Promise.all([
+                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/stop'),
+                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/route/')
+                ]);
+
+                const stopsData = await stopsRes.json();
+                stopsData.data.forEach(stop => {
+                    allStopsMap[stop.stop] = { name: stop.name_tc, lat: stop.lat, lng: stop.long };
+                });
+
+                const routesData = await routesRes.json();
+                allRoutesData = routesData.data;
+
+                isDataReady = true;
+                document.getElementById('statusMsgSearch').textContent = '';
+                initMap();
+                renderPopularRoutes();
+            } catch (err) {
+                document.getElementById('statusMsgSearch').textContent = "數據載入失敗";
+            }
+        }
+
+        function switchMainTab(tabName) {
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.querySelectorAll('.app-view').forEach(v => v.classList.remove('active'));
+
+            document.getElementById(`nav-${tabName}`).classList.add('active');
+            document.getElementById(`view-${tabName}`).classList.add('active');
+
+            if (tabName === 'map') {
+                setTimeout(() => {
+                    map.invalidateSize();
+                }, 100);
+            } else if (tabName === 'fav') {
+                renderFavoritesView();
+            } else if (tabName === 'nearby') {
+                renderNearbyView();
+            }
+        }
+
+        function isFavorite(route) {
+            return favorites.includes(route);
+        }
+
+        function toggleFavorite(event, route) {
+            event.stopPropagation();
+            if (isFavorite(route)) {
+                favorites = favorites.filter(r => r !== route);
+            } else {
+                favorites.push(route);
+            }
+            localStorage.setItem('kmb_favorites', JSON.stringify(favorites));
+
+            const activeTab = document.querySelector('.nav-item.active').id;
+            if (activeTab === 'nav-fav') {
+                renderFavoritesView();
+            } else {
+                handleSearchInput();
+            }
+        }
+
+        function renderPopularRoutes() {
+            const popular = ['1A', '273A', '270B', '78B', '276B'];
+            const searchList = document.getElementById('searchList');
+            searchList.innerHTML = '';
+            document.getElementById('searchHeaderTitle').textContent = '熱門路線';
+
+            popular.forEach(rt => {
+                const matched = allRoutesData.find(r => r.route === rt && r.service_type === "1");
+                if (matched) {
+                    appendRouteCard(searchList, matched);
+                }
+            });
+        }
+
+        function appendRouteCard(container, routeData) {
+            const card = document.createElement('div');
+            card.className = 'card-item';
+            card.onclick = () => {
+                document.getElementById('routeInput').value = routeData.route;
+                searchRoute(routeData.route);
+            };
+
+            const favActive = isFavorite(routeData.route) ? 'active' : '';
+
+            card.innerHTML = `
+                <div class="card-left">
+                    <div>
+                        <div class="route-no">${routeData.route}</div>
+                        <div class="route-company">九巴</div>
+                    </div>
+                    <div class="route-info">
+                        <div class="dest-title">往 ${routeData.dest_tc}</div>
+                        <div class="via-info">由 ${routeData.orig_tc} 出發</div>
+                    </div>
+                </div>
+                <div class="card-right">
+                    <button class="fav-btn ${favActive}" onclick="toggleFavorite(event, '${routeData.route}')">
+                        <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                    </button>
+                </div>
+            `;
+            container.appendChild(card);
+        }
+
+        function handleSearchInput() {
+            const val = document.getElementById('routeInput').value.trim().toUpperCase();
+            if (val === '') {
+                document.getElementById('dirTabs').style.display = 'none';
+                renderPopularRoutes();
+                return;
+            }
+            searchRoute(val);
+        }
+
+        function searchRoute(routeNum) {
+            if (!isDataReady) return;
+            
+            const matches = allRoutesData.filter(r => r.route === routeNum && r.service_type === "1");
+            const searchList = document.getElementById('searchList');
+            const dirTabs = document.getElementById('dirTabs');
+            const statusMsg = document.getElementById('statusMsgSearch');
+
+            if (matches.length === 0) {
+                statusMsg.textContent = `找不到路線 ${routeNum}`;
+                searchList.innerHTML = '';
+                dirTabs.style.display = 'none';
+                return;
+            }
+
+            statusMsg.textContent = '';
+            document.getElementById('searchHeaderTitle').textContent = `路線 ${routeNum} 分站`;
+            dirTabs.style.display = 'flex';
+            dirTabs.innerHTML = '';
+
+            matches.forEach((m, idx) => {
+                const btn = document.createElement('div');
+                btn.className = `dir-btn ${idx === 0 ? 'active' : ''}`;
+                btn.textContent = `往 ${m.dest_tc}`;
+                btn.onclick = () => {
+                    document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    loadStopsAndETA(m.route, m.bound, m.service_type);
+                };
+                dirTabs.appendChild(btn);
+            });
+
+            loadStopsAndETA(matches[0].route, matches[0].bound, matches[0].service_type);
+        }
+
+        async function loadStopsAndETA(route, bound, serviceType) {
+            if (refreshInterval) clearInterval(refreshInterval);
+            const searchList = document.getElementById('searchList');
+            const statusMsg = document.getElementById('statusMsgSearch');
+            statusMsg.textContent = "載入實時班次...";
+            searchList.innerHTML = '';
+
+            try {
+                const boundStr = bound === 'O' ? 'outbound' : 'inbound';
+                const [stopsRes, etaRes] = await Promise.all([
+                    fetch(`https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${route}/${boundStr}/${serviceType}`),
+                    fetch(`https://data.etabus.gov.hk/v1/transport/kmb/route-eta/${route}/${serviceType}`)
+                ]);
+
+                const stopsData = await stopsRes.json();
+                const etaData = await etaRes.json();
+
+                const etasBySeq = {};
+                etaData.data.forEach(item => {
+                    if (item.dir === bound && item.eta) {
+                        if (!etasBySeq[item.seq]) etasBySeq[item.seq] = [];
+                        etasBySeq[item.seq].push(item.eta);
+                    }
+                });
+
+                statusMsg.textContent = '';
+                routeLayerGroup.clearLayers();
+                const latLngs = [];
+
+                stopsData.data.forEach(item => {
+                    const stop = allStopsMap[item.stop];
+                    const stopName = stop ? stop.name : "車站";
+                    const etas = etasBySeq[item.seq] || [];
+
+                    if (stop) {
+                        latLngs.push([stop.lat, stop.lng]);
+                        const marker = L.marker([stop.lat, stop.lng]);
+                        routeLayerGroup.addLayer(marker);
+                    }
+
+                    let etaDisplay = '暫無數據';
+                    let etaSubDisplay = '';
+                    if (etas.length > 0) {
+                        const mins = calcMins(etas[0]);
+                        etaDisplay = mins <= 0 ? '即將到站' : `${mins} 分鐘`;
+                        if (etas[1]) {
+                            const mins2 = calcMins(etas[1]);
+                            etaSubDisplay = `${mins2} 分鐘`;
+                        }
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = 'card-item';
+                    card.onclick = () => {
+                        if (stop) {
+                            switchMainTab('map');
+                            map.setView([stop.lat, stop.lng], 16);
+                        }
+                    };
+
+                    card.innerHTML = `
+                        <div class="card-left">
+                            <span style="background:var(--primary-red); color:#ffffff; border-radius:50%; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold;">${item.seq}</span>
+                            <div class="route-info">
+                                <div class="dest-title">${stopName}</div>
+                            </div>
+                        </div>
+                        <div class="card-right">
+                            <div class="eta-main">${etaDisplay}</div>
+                            <div class="eta-sub">${etaSubDisplay}</div>
+                        </div>
+                    `;
+                    searchList.appendChild(card);
+                });
+
+                if (latLngs.length > 0) {
+                    const polyline = L.polyline(latLngs, { color: '#0984e3', weight: 4 }).addTo(routeLayerGroup);
+                    map.fitBounds(polyline.getBounds());
+                }
+
+                refreshInterval = setInterval(() => loadStopsAndETA(route, bound, serviceType), 30000);
+
+            } catch (err) {
+                statusMsg.textContent = "載入失敗";
+            }
+        }
+
+        function calcMins(isoTime) {
+            const diff = new Date(isoTime).getTime() - new Date().getTime();
+            const mins = Math.floor(diff / 60000);
+            return mins < 0 ? 0 : mins;
+        }
+
+        function renderFavoritesView() {
+            const favList = document.getElementById('favList');
+            const statusMsg = document.getElementById('statusMsgFav');
+            favList.innerHTML = '';
+
+            if (favorites.length === 0) {
+                statusMsg.textContent = "尚無收藏路線";
+                return;
+            }
+
+            statusMsg.textContent = '';
+            favorites.forEach(rt => {
+                const matched = allRoutesData.find(r => r.route === rt && r.service_type === "1");
+                if (matched) {
+                    appendRouteCard(favList, matched);
+                }
+            });
+        }
+
+        function renderNearbyView() {
+            const nearbyList = document.getElementById('nearbyList');
+            const statusMsg = document.getElementById('statusMsgNearby');
+            nearbyList.innerHTML = '';
+
+            if (!navigator.geolocation) {
+                statusMsg.textContent = "不支援定位功能";
+                return;
+            }
+
+            statusMsg.textContent = "正在獲取當前位置...";
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const userLat = pos.coords.latitude;
+                    const userLng = pos.coords.longitude;
+                    statusMsg.textContent = "";
+
+                    const stopsWithDist = [];
+                    for (const id in allStopsMap) {
+                        const s = allStopsMap[id];
+                        const dist = getDistance(userLat, userLng, s.lat, s.lng);
+                        stopsWithDist.push({ id, name: s.name, lat: s.lat, lng: s.lng, dist });
+                    }
+
+                    stopsWithDist.sort((a, b) => a.dist - b.dist);
+                    const nearest = stopsWithDist.slice(0, 10);
+
+                    nearest.forEach(s => {
+                        const card = document.createElement('div');
+                        card.className = 'card-item';
+                        card.onclick = () => {
+                            switchMainTab('map');
+                            map.setView([s.lat, s.lng], 16);
+                        };
+
+                        card.innerHTML = `
+                            <div class="card-left">
+                                <div class="route-info">
+                                    <div class="dest-title">${s.name}</div>
+                                    <div class="via-info">距離約 ${Math.round(s.dist)} 米</div>
+                                </div>
+                            </div>
+                            <div class="card-right">
+                                <span style="color:var(--accent-yellow); font-size:12px;">查看地圖</span>
+                            </div>
+                        `;
+                        nearbyList.appendChild(card);
+                    });
+                },
+                () => {
+                    statusMsg.textContent = "無法獲取定位權限";
+                }
+            );
+        }
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        initApp();
+    </script>
+</body>
+</html>
