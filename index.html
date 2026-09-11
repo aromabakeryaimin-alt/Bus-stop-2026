@@ -139,6 +139,7 @@
             position: relative;
             display: flex;
             align-items: center;
+            flex: 1;
         }
 
         .search-input {
@@ -168,6 +169,19 @@
             width: 18px;
             height: 18px;
             fill: var(--text-muted);
+        }
+
+        /* 語言選擇器 */
+        .lang-select {
+            background-color: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            color: #ffffff;
+            border-radius: 8px;
+            padding: 12px 8px;
+            font-size: 14px;
+            margin-left: 10px;
+            outline: none;
+            cursor: pointer;
         }
 
         /* 路線列表卡片 */
@@ -417,9 +431,16 @@
             <!-- 搜尋頁 -->
             <div id="view-search" class="app-view">
                 <div class="search-box-container">
-                    <div class="search-input-wrapper">
-                        <svg class="search-input-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                        <input type="text" id="routeInput" class="search-input" placeholder="輸入路線 (如 1A, 273A)" readonly onclick="showKeyboard()">
+                    <div style="display: flex; width: 100%; align-items: center;">
+                        <div class="search-input-wrapper">
+                            <svg class="search-input-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                            <input type="text" id="routeInput" class="search-input" placeholder="輸入路線 (如 1A)" readonly onclick="showKeyboard()">
+                        </div>
+                        <select id="langSelect" class="lang-select" onchange="changeLanguage()">
+                            <option value="tc">繁體中文</option>
+                            <option value="sc">简体中文</option>
+                            <option value="en">English</option>
+                        </select>
                     </div>
                 </div>
 
@@ -512,6 +533,31 @@
         let refreshInterval = null;
         let map, routeLayerGroup;
         let favorites = JSON.parse(localStorage.getItem('kmb_favorites') || '[]');
+        let currentLang = localStorage.getItem('kmb_lang') || 'tc';
+
+        document.getElementById('langSelect').value = currentLang;
+
+        function getProp(obj, prop) {
+            return obj[`${prop}_${currentLang}`] || obj[`${prop}_tc`] || '';
+        }
+
+        function changeLanguage() {
+            currentLang = document.getElementById('langSelect').value;
+            localStorage.setItem('kmb_lang', currentLang);
+            
+            if (isDataReady) {
+                renderPopularRoutes();
+                if (document.getElementById('nav-search').classList.contains('active') && routeInput.value) {
+                    searchRoute(routeInput.value.trim().toUpperCase());
+                }
+                if (document.getElementById('nav-nearby').classList.contains('active')) {
+                    renderNearbyView();
+                }
+                if (document.getElementById('nav-fav').classList.contains('active')) {
+                    renderFavoritesView();
+                }
+            }
+        }
 
         function updateClock() {
             const now = new Date();
@@ -528,16 +574,18 @@
 
         async function initApp() {
             try {
-                // 已修正 API 尾部斜線
+                // 修正了末尾的斜線
                 const [stopsRes, routesRes] = await Promise.all([
-                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/stop/'),
-                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/route/')
+                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/stop'),
+                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/route')
                 ]);
 
                 const stopsData = await stopsRes.json();
                 stopsData.data.forEach(stop => {
                     allStopsMap[stop.stop] = { 
-                        name: stop.name_tc, 
+                        name_tc: stop.name_tc,
+                        name_sc: stop.name_sc,
+                        name_en: stop.name_en,
                         lat: parseFloat(stop.lat), 
                         lng: parseFloat(stop.long) 
                     };
@@ -629,12 +677,17 @@
                 searchRoute(routeData.route);
             };
 
+            const dest = getProp(routeData, 'dest');
+            const orig = getProp(routeData, 'orig');
+            const toText = currentLang === 'en' ? 'To' : '往';
+            const fromText = currentLang === 'en' ? 'From' : '由';
+
             card.innerHTML = `
                 <div class="card-left">
                     <div class="route-no">${routeData.route}</div>
                     <div>
-                        <div class="dest-title">往 ${routeData.dest_tc}</div>
-                        <div class="via-info">由 ${routeData.orig_tc} 出發</div>
+                        <div class="dest-title">${toText} ${dest}</div>
+                        <div class="via-info">${fromText} ${orig}出發</div>
                     </div>
                 </div>
                 <div class="card-right">
@@ -651,7 +704,7 @@
                 document.getElementById('dirTabs').style.display = 'none';
                 document.getElementById('map-overlay').style.display = 'none';
                 document.getElementById('searchList').innerHTML = '';
-                document.getElementById('statusMsgSearch').textContent = '請輸入路線號碼';
+                document.getElementById('statusMsgSearch').textContent = currentLang === 'en' ? 'Please enter a route number' : '請輸入路線號碼';
                 return;
             }
             searchRoute(val);
@@ -684,7 +737,7 @@
 
             if (matches.length === 0) {
                 clearCurrentInterval();
-                statusMsg.textContent = `找不到路線 ${routeNum}`;
+                statusMsg.textContent = currentLang === 'en' ? `Route ${routeNum} not found` : `找不到路線 ${routeNum}`;
                 searchList.innerHTML = '';
                 dirTabs.style.display = 'none';
                 document.getElementById('map-overlay').style.display = 'none';
@@ -701,7 +754,7 @@
             matches.forEach((m, idx) => {
                 const btn = document.createElement('div');
                 btn.className = `dir-btn ${idx === 0 ? 'active' : ''}`;
-                btn.textContent = `往 ${m.dest_tc}`;
+                btn.textContent = `${currentLang === 'en' ? 'To' : '往'} ${getProp(m, 'dest')}`;
                 btn.onclick = () => {
                     document.querySelectorAll('.dir-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
@@ -725,7 +778,7 @@
             
             const { route, bound, service_type: serviceType } = routeObj;
             const searchList = document.getElementById('searchList');
-            document.getElementById('statusMsgSearch').textContent = "載入班次中...";
+            document.getElementById('statusMsgSearch').textContent = currentLang === 'en' ? "Loading ETAs..." : "載入班次中...";
             searchList.innerHTML = '';
 
             try {
@@ -751,29 +804,37 @@
 
                 stopsData.data.forEach(item => {
                     const stop = allStopsMap[item.stop];
-                    const stopName = stop ? stop.name : "車站";
+                    const stopName = stop ? getProp(stop, 'name') : (currentLang === 'en' ? "Station" : "車站");
                     const etas = etasBySeq[item.seq] || [];
 
-                    let etaDisplay = '暫無班次';
+                    let etaDisplay = currentLang === 'en' ? 'No ETA' : '暫無班次';
                     let etaSubDisplay = '';
+                    const minTxt = currentLang === 'en' ? 'min' : '分鐘';
+
                     if (etas.length > 0) {
                         const mins = calcMins(etas[0]);
-                        etaDisplay = mins === null ? '暫無數據' : (mins <= 0 ? '即將到站' : `${mins} 分鐘`);
+                        if (mins === null) {
+                            etaDisplay = currentLang === 'en' ? 'No Data' : '暫無數據';
+                        } else if (mins <= 0) {
+                            etaDisplay = currentLang === 'en' ? 'Arriving' : '即將到站';
+                        } else {
+                            etaDisplay = `${mins} ${minTxt}`;
+                        }
+                        
                         if (etas[1]) {
                             const mins2 = calcMins(etas[1]);
-                            if (mins2 !== null) etaSubDisplay = `${mins2} 分鐘`;
+                            if (mins2 !== null) etaSubDisplay = `${mins2} ${minTxt}`;
                         }
                     }
 
                     const card = document.createElement('div');
                     card.className = 'card-item';
                     card.onclick = () => {
-                        hideKeyboard(); // 點擊車站時才收起鍵盤
+                        hideKeyboard(); 
                         if (stop) {
                             const mapOverlay = document.getElementById('map-overlay');
                             mapOverlay.style.display = 'block';
                             
-                            // 延遲讓地圖順利重新計算 layout 避免灰區
                             setTimeout(() => {
                                 map.invalidateSize();
                                 map.setView([stop.lat, stop.lng], 16);
@@ -800,7 +861,7 @@
                 refreshInterval = setInterval(() => loadStopsAndETA(routeObj), 30000);
             } catch (err) {
                 console.error(err);
-                document.getElementById('statusMsgSearch').textContent = "載入數據失敗";
+                document.getElementById('statusMsgSearch').textContent = currentLang === 'en' ? "Data Loading Failed" : "載入數據失敗";
             }
         }
 
@@ -813,13 +874,12 @@
             return mins < 0 ? 0 : mins;
         }
 
-        // 實作收藏頁面
         function renderFavoritesView() {
             const favList = document.getElementById('favList');
             favList.innerHTML = '';
             
             if (favorites.length === 0) {
-                document.getElementById('statusMsgFav').textContent = "尚無收藏路線，請在搜尋路線時點擊 ★ 收藏";
+                document.getElementById('statusMsgFav').textContent = currentLang === 'en' ? "No favorites yet" : "尚無收藏路線，請在搜尋路線時點擊 ★ 收藏";
                 return;
             }
             document.getElementById('statusMsgFav').textContent = "";
@@ -829,15 +889,14 @@
             });
         }
 
-        // 實作附近車站 GPS 功能
         function renderNearbyView() {
             const nearbyList = document.getElementById('nearbyList');
             nearbyList.innerHTML = '';
             const statusMsg = document.getElementById('statusMsgNearby');
-            statusMsg.textContent = "正在獲取當前位置...";
+            statusMsg.textContent = currentLang === 'en' ? "Getting GPS location..." : "正在獲取當前位置...";
 
             if (!navigator.geolocation) {
-                statusMsg.textContent = "您的設備不支援定位功能";
+                statusMsg.textContent = currentLang === 'en' ? "GPS not supported" : "您的設備不支援定位功能";
                 return;
             }
 
@@ -847,7 +906,6 @@
                     const userLat = pos.coords.latitude;
                     const userLng = pos.coords.longitude;
 
-                    // 計算距離最近的 5 個車站
                     const stopsWithDistance = Object.keys(allStopsMap).map(stopId => {
                         const s = allStopsMap[stopId];
                         const dist = getDistance(userLat, userLng, s.lat, s.lng);
@@ -857,26 +915,28 @@
                     stopsWithDistance.forEach(s => {
                         const card = document.createElement('div');
                         card.className = 'card-item';
+                        const distTxt = currentLang === 'en' ? 'm' : '米';
+                        const nearbyTxt = currentLang === 'en' ? 'Nearby' : '附近車站';
+                        
                         card.innerHTML = `
                             <div class="card-left">
-                                <span style="background:#333; color:var(--accent-yellow); border-radius:4px; padding:2px 6px; font-size:11px; font-weight:bold;">${Math.round(s.dist)}米</span>
-                                <div class="dest-title">${s.name}</div>
+                                <span style="background:#333; color:var(--accent-yellow); border-radius:4px; padding:2px 6px; font-size:11px; font-weight:bold;">${Math.round(s.dist)}${distTxt}</span>
+                                <div class="dest-title">${getProp(s, 'name')}</div>
                             </div>
                             <div class="card-right">
-                                <span style="color:var(--text-muted); font-size:12px;">附近車站</span>
+                                <span style="color:var(--text-muted); font-size:12px;">${nearbyTxt}</span>
                             </div>
                         `;
                         nearbyList.appendChild(card);
                     });
                 },
                 (err) => {
-                    statusMsg.textContent = "無法取得位置，請允許瀏覽器讀取 GPS 定位";
+                    statusMsg.textContent = currentLang === 'en' ? "Unable to get location" : "無法取得位置，請允許瀏覽器讀取 GPS 定位";
                 },
                 { enableHighAccuracy: true, timeout: 8000 }
             );
         }
 
-        // 計算兩點經緯度距離 (公尺)
         function getDistance(lat1, lon1, lat2, lon2) {
             const R = 6371e3;
             const φ1 = lat1 * Math.PI / 180;
