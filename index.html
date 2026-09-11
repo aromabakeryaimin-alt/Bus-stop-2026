@@ -528,10 +528,10 @@
 
         async function initApp() {
             try {
-                // 修正 API 尾部斜線
+                // 已修正 API 尾部斜線
                 const [stopsRes, routesRes] = await Promise.all([
-                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/stop'),
-                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/route')
+                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/stop/'),
+                    fetch('https://data.etabus.gov.hk/v1/transport/kmb/route/')
                 ]);
 
                 const stopsData = await stopsRes.json();
