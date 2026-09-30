@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<title>九巴報站 Lite · Beta 1.0</title>
+<title>九巴報站 Lite · 內測版 0.1</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -344,6 +344,11 @@ h2 { margin: 0; }
 .toast.show { opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto !important; } }
+.msg.urg { background: var(--sel); }
+.msg.urg .msg-ic { background: var(--red); color: #fff; }
+.urgbar { width: calc(100% - 24px); margin: 8px 12px 0; border-radius: 14px; background: var(--red); color: #fff; border: 0; }
+.urgbar small, .urgbar .chev { color: rgba(255,255,255,.9); }
+.status a { color: var(--accent); }
 </style>
 </head>
 <body>
@@ -375,7 +380,7 @@ h2 { margin: 0; }
 
 <div class="app" id="app">
   <header class="top">
-    <div class="brand">九巴報站<span class="lite">Lite</span><span class="lite beta">Beta 1.0</span></div>
+    <div class="brand">九巴報站<span class="lite">Lite</span><span class="lite beta">內測版 0.1</span></div>
     <div class="top-r">
       <time id="clock">--:--</time>
       <button type="button" class="icon-btn" id="themeBtn" data-act="theme" aria-label="切換深色或淺色模式"><svg class="ic"><use href="#i-moon"/></svg></button>
@@ -386,12 +391,12 @@ h2 { margin: 0; }
     <!-- 首頁 -->
     <section id="view-home" class="view active" aria-label="首頁">
       <button type="button" class="fake-field" data-act="goto-search"><svg class="ic"><use href="#i-search"/></svg>輸入路線號碼，例如 1A、273A</button>
+      <div id="homeUrg"></div>
       <div id="homeFav"></div>
       <div id="homeRecent"></div>
-      <div id="homeFreq"></div>
       <h2 class="sec">熱門路線</h2>
       <div id="homePopular" class="list"></div>
-      <p class="credit">班次資料來自九巴開放數據（DATA.GOV.HK），預測到站時間只供參考，請以車站及巴士公司公佈為準。本網頁並非九巴官方服務。<br>版本：Beta 1.0</p>
+      <p class="credit">班次資料來自九巴開放數據（DATA.GOV.HK），預測到站時間只供參考，請以車站及巴士公司公佈為準。本網頁並非九巴官方服務。<br>版本：內測版 0.1</p>
     </section>
 
     <!-- 搜尋 -->
@@ -448,6 +453,8 @@ h2 { margin: 0; }
 
     <!-- 訊息與設定 -->
     <section id="view-msg" class="view" aria-label="訊息與設定">
+      <h2 class="sec">緊急消息 · 運輸署</h2>
+      <div id="urgBody" class="list"></div>
       <div class="head-row">
         <h2 class="sec">訊息</h2>
         <div class="acts">
@@ -459,8 +466,6 @@ h2 { margin: 0; }
       <p class="disclaimer">訊息由本機比對九巴開放數據的前後差異得出，並非官方公告。改線、站位轉移及特別交通消息，請以九巴及運輸署公佈為準。</p>
       <h2 class="sec">設定</h2>
       <div id="setBody" class="list"></div>
-      <h2 class="sec">你的使用數據（只存在這部裝置）</h2>
-      <div id="statBody" class="list"></div>
       <p class="credit"></p>
     </section>
 
@@ -514,7 +519,7 @@ const store = {
 };
 
 async function fetchJSON(url, fresh = false) {
-  const res = await fetch(url, fresh ? { cache: 'no-store' } : undefined);
+  const res = await fetch(url, { ...(fresh ? { cache: 'no-store' } : {}), signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -536,13 +541,13 @@ const S = {
   theme: store.get('kmb_theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   mapOn: store.get('kmb_map', true),
   tRefresh: null, tTick: null, searchTimer: null,
-  markers: new Map(), needFit: false, pos: null, alerts: new Map(), tAlert: null, mapBig: false,
-  cfg: Object.assign({ alertMin: 3, wake: false, collect: true }, store.get('kmb_cfg', {})),
-  stats: Object.assign({ total: 0, routes: {} }, store.get('kmb_stats', {})),
+  markers: new Map(), needFit: false, pos: null, alerts: new Map(store.get('kmb_alerts', [])), tAlert: null, mapBig: false,
+  cfg: Object.assign({ alertMin: 3, wake: false, lang: 'tc', op: 50 }, store.get('kmb_cfg', {})),
   msgs: [].concat(store.get('kmb_msgs', [])).filter(m => m && m.title)
 };
 
 let map = null, layer = null, userLayer = null, tileLayer = null;
+S.urg = []; S.urgErr = false; S.urgAt = null;
 const view = $('#view-search');
 const input = $('#routeInput');
 const kb = $('#kb');
@@ -576,7 +581,7 @@ function dirsFor(routeNo, pick) {
 /* ========== 到站時間計算 ========== */
 const packEta = it => {
   const t = it.eta ? Date.parse(it.eta) : NaN;
-  return { ts: Number.isFinite(t) ? t : null, rmk: it.rmk_tc || '' };
+  return { ts: Number.isFinite(t) ? t : null, rmk: L(it, 'rmk') };
 };
 
 function groupEta(items, dir) {
@@ -636,20 +641,13 @@ function toggleFav(f) {
 function addRecent(route) {
   S.recent = [route, ...S.recent.filter(r => r !== route)].slice(0, 8);
   store.set('kmb_recent', S.recent);
-  if (S.cfg.collect) {
-    const e = S.stats.routes[route] || { n: 0 };
-    e.n++; e.last = Date.now();
-    S.stats.routes[route] = e;
-    S.stats.total++;
-    store.set('kmb_stats', S.stats);
-  }
 }
 
 /* ========== 共用畫面 ========== */
 const routeCard = (r, act = 'go-route') => `
   <button type="button" class="card" data-act="${act}" data-route="${esc(r.route)}" data-bound="${esc(r.bound)}" data-st="${esc(r.service_type)}">
     <span class="plate">${esc(r.route)}</span>
-    <span class="card-text"><b>往 ${esc(r.dest_tc)}</b><small>由 ${esc(r.orig_tc)} 開出</small></span>
+    <span class="card-text"><b>往 ${esc(r.dest)}</b><small>由 ${esc(r.orig)} 開出</small></span>
     ${ic('chev', 'chev')}
   </button>`;
 
@@ -674,20 +672,16 @@ function applyTheme(t) {
   const meta = $('meta[name="theme-color"]');
   if (meta) meta.content = t === 'dark' ? '#14171b' : '#ffffff';
   store.set('kmb_theme', t);
+  applyGlass();
   setTiles();
 }
 
 /* ========== 首頁 ========== */
 function renderHome() {
+  renderHomeUrg();
   const rec = S.recent.filter(r => S.routeMap.has(r));
   $('#homeRecent').innerHTML = rec.length
     ? `<h2 class="sec">最近查看</h2><div class="chips">${rec.map(r => `<button type="button" class="chip" data-act="go-route" data-route="${esc(r)}">${esc(r)}</button>`).join('')}</div>`
-    : '';
-  const freq = S.cfg.collect
-    ? Object.entries(S.stats.routes).filter(([r, e]) => e.n >= 2 && S.routeMap.has(r)).sort((a, b) => b[1].n - a[1].n).slice(0, 5)
-    : [];
-  $('#homeFreq').innerHTML = freq.length
-    ? `<h2 class="sec">常用路線</h2><div class="chips">${freq.map(([r, e]) => `<button type="button" class="chip" data-act="go-route" data-route="${esc(r)}">${esc(r)}<i>${e.n} 次</i></button>`).join('')}</div>`
     : '';
   const fs = S.favs.filter(f => f.t === 's');
   $('#homeFav').innerHTML = fs.length ? `<h2 class="sec">收藏站牌 · 即時</h2><div class="list">${fs.map(favStopRow).join('')}</div>` : '';
@@ -815,7 +809,7 @@ function renderDirTabs(active) {
   $('#dirTabs').innerHTML = S.dirs.map(d => {
     const on = d.bound === active.bound && d.service_type === active.service_type;
     return `<button type="button" class="dir ${on ? 'on' : ''}" data-act="pick-dir" data-bound="${esc(d.bound)}" data-st="${esc(d.service_type)}" aria-pressed="${on}">
-      <span class="dir-to">往 ${esc(d.dest_tc)}</span><span class="dir-from">由 ${esc(d.orig_tc)}</span></button>`;
+      <span class="dir-to">往 ${esc(d.dest)}</span><span class="dir-from">由 ${esc(d.orig)}</span></button>`;
   }).join('');
 }
 
@@ -1215,7 +1209,7 @@ async function loadNb(id) {
     const rows = [...g.values()].map(list => {
       list.sort((a, b) => a.eta_seq - b.eta_seq);
       const f = list[0];
-      return { route: f.route, dir: f.dir, st: String(f.service_type), seq: Number(f.seq), dest: f.dest_tc, etas: list.map(packEta) };
+      return { route: f.route, dir: f.dir, st: String(f.service_type), seq: Number(f.seq), dest: L(f, 'dest'), etas: list.map(packEta) };
     }).sort((a, b) => a.route.localeCompare(b.route, 'en', { numeric: true }) || a.dir.localeCompare(b.dir));
     S.nbData = { id, rows };
     paintNb();
@@ -1245,6 +1239,152 @@ function paintNb() {
 
 function refreshNearby() { if (S.nbOpen) loadNb(S.nbOpen); }
 
+/* ========== 語言 / 按鈕透明度 / 通知 / 緊急消息 ========== */
+let LANG = 'tc';
+const L = (o, k) => o[`${k}_${LANG}`] || o[`${k}_tc`] || '';
+const SC_MAP = {};
+('報报 輸输 線线 號号 碼码 鍵键 盤盘 尋寻 設设 訊讯 頁页 載载 資资 預预 測测 開开 數数 據据 來来 僅仅 參参 請请 車车 佈布 並并 網网 務务 熱热 門门 於于 確确 記记 錄录 統统 計计 啟启 螢荧 較较 電电 餘余 幾几 內内 鐘钟 將将 達达 暫暂 無无 終终 選选 圖图 縮缩 顯显 遠远 複复 製制 轉转 運运 緊紧 語语 鈕钮 態态 過过 個个 裝装 該该 為为 與与 關关 當当 時时 間间 這这 從从 應应 則则 點点 現现 動动 議议 說说 歷历 讀读 戶户 見见 經经 樣样 條条 認认 邊边 導导 進进 發发 實实 帶带 體体 檢检 絡络 連连 試试 後后 讓让 節节 覽览 鎖锁 準准 備备 監监 區区 國国 東东 廣广 總总 標标 傳传 換换 誤误 隨随 舊旧 還还').split(' ').forEach(p => { SC_MAP[p[0]] = p[1]; });
+const EN = {
+  '九巴報站': 'KMB ETA', '內測版 0.1': 'Closed Beta 0.1', '版本：內測版 0.1': 'Version: Closed Beta 0.1',
+  '首頁': 'Home', '搜尋': 'Search', '附近': 'Nearby', '收藏': 'Saved', '訊息': 'Inbox',
+  '輸入路線號碼，例如 1A、273A': 'Enter a route, e.g. 1A, 273A', '輸入路線號碼': 'Enter route no.', '路線號碼': 'Route no.',
+  '熱門路線': 'Popular routes', '最近查看': 'Recent', '收藏站牌 · 即時': 'Saved stops · live', '常用站牌': 'Saved stops', '收藏路線': 'Favourite route', '已收藏': 'Saved',
+  '班次資料來自九巴開放數據（DATA.GOV.HK），預測到站時間只供參考，請以車站及巴士公司公佈為準。本網頁並非九巴官方服務。': 'Schedule data from KMB open data (DATA.GOV.HK). ETAs are estimates; please refer to stop and operator announcements. This page is not an official KMB service.',
+  '地圖': 'Map', '最近的站': 'Nearest stop', '分享': 'Share', '重新整理': 'Refresh', '重試': 'Retry', '清除': 'Clear', '清空': 'Clear',
+  '起點': 'Start', '終點': 'End', '已選站': 'Selected', '附近巴士站': 'Nearby stops', '重新定位': 'Relocate', '全部已讀': 'Mark all read',
+  '緊急消息': 'Urgent notices', '緊急消息 · 運輸署': 'Urgent notices · Transport Dept', '設定': 'Settings',
+  '訊息由本機比對九巴開放數據的前後差異得出，並非官方公告。改線、站位轉移及特別交通消息，請以九巴及運輸署公佈為準。': 'Messages are generated on this device by comparing KMB open data and are not official notices. For diversions and special arrangements, refer to KMB and the Transport Department.',
+  '語言': 'Language', '按鈕透明度': 'Button transparency', '向右拉，按鈕越透明': 'Slide right for more transparent buttons',
+  '到站提醒時間': 'Alert time', '巴士剩餘幾多分鐘內通知你': 'Notify when the bus is this many minutes away', '通知': 'Notifications',
+  '按開關允許通知，切換到其他程式也會收到提醒': 'Turn on to get alerts while the app is in the background',
+  '已開啟：切換到其他程式也會收到提醒': 'On: alerts arrive while the app is in the background',
+  '已被瀏覽器封鎖，請在瀏覽器網站設定中允許通知': 'Blocked by the browser; allow notifications in site settings',
+  '螢幕常亮': 'Keep screen on', '查看班次時不會自動熄屏，較耗電': 'Screen stays on while viewing; uses more battery',
+  '清除全部本機資料': 'Clear all local data', '收藏、最近查看、訊息及設定都會刪除': 'Favourites, recents, messages and settings will be deleted',
+  '載入路線資料…': 'Loading routes…', '載入班次中…': 'Loading arrivals…', '請用下方鍵盤輸入路線號碼': 'Use the keypad below to enter a route number',
+  '載入失敗，請稍後再試': 'Failed to load, please retry', '暫無班次': 'No service', '即將到達': 'Arriving', '此站暫時沒有班次資料': 'No arrival data for this stop',
+  '正在取得你的位置…': 'Getting your location…', '（未知車站）': '(Unknown stop)', '暫時沒有與巴士相關的緊急消息': 'No bus-related urgent notices right now',
+  '未能取得運輸署消息，請稍後再試，或': 'Could not load Transport Dept notices. Try again, or ', '到運輸署網站查看': 'open the TD website'
+};
+const EN_RE = [
+  [/^往 (.+)$/, 'To $1'], [/^由 (.+) 開出$/, 'From $1'], [/^更新於 (.+)$/, 'Updated $1'],
+  [/^(\d+) 分鐘$/, '$1 min'], [/^(\d+) 分$/, '$1 min'], [/^(\d+) 米$/, '$1 m'],
+  [/^之後 (.+?)( 分鐘)?$/, (m, a) => 'Next: ' + a.replace(/、/g, ', ').replace(/即將/g, 'soon') + (m.endsWith('分鐘') ? ' min' : '')],
+  [/^找不到路線 (.+)$/, 'Route $1 not found'], [/^運輸署有 (\d+) 則與巴士相關的通知$/, 'Transport Dept: $1 bus-related notice(s)'],
+  [/^運輸署 · (.+)$/, 'Transport Dept · $1'], [/^步行約 (\d+) 分鐘，趕得上$/, 'Walk ~$1 min: you can make it'], [/^步行約 (\d+) 分鐘，恐怕趕不及$/, 'Walk ~$1 min: may miss it']
+];
+const tr = s => {
+  if (LANG === 'sc') return s.replace(/[\u4e00-\u9fff]/g, c => SC_MAP[c] || c);
+  if (LANG !== 'en') return s;
+  const t = s.trim();
+  if (EN[t]) return s.replace(t, EN[t]);
+  return EN_RE.reduce((a, [re, f]) => a.replace(re, f), s);
+};
+const ORIG = new WeakMap();
+function trNode(n) {
+  if (n.nodeType === 3) {
+    const o = ORIG.get(n) ?? n.nodeValue;
+    if (!/[\u4e00-\u9fff]/.test(o)) return;
+    ORIG.set(n, o);
+    const v = tr(o);
+    if (v !== n.nodeValue) n.nodeValue = v;
+  } else if (n.nodeType === 1) {
+    for (const a of ['placeholder', 'aria-label']) {
+      const v = n.getAttribute(a);
+      if (v == null) continue;
+      const k = '_o' + a, o = n[k] ?? v;
+      n[k] = o;
+      const t = tr(o);
+      if (t !== v) n.setAttribute(a, t);
+    }
+  }
+}
+function walk(n) { if (n.tagName === 'SCRIPT' || n.tagName === 'STYLE') return; trNode(n); n.childNodes.forEach(walk); }
+new MutationObserver(ms => { if (LANG !== 'tc') ms.forEach(m => m.addedNodes.forEach(walk)); }).observe(document.body, { childList: true, subtree: true });
+
+function applyLang() {
+  LANG = S.cfg.lang || 'tc';
+  document.documentElement.lang = { tc: 'zh-HK', sc: 'zh-CN', en: 'en' }[LANG];
+  document.title = LANG === 'en' ? 'KMB ETA Lite · Closed Beta 0.1' : tr('九巴報站 Lite · 內測版 0.1');
+  if (S.ready) {
+    renderHome(); renderMsgs();
+    if (S.cur) { renderDirTabs(S.cur); renderStopList(); paintEtas(); styleMarkers(); }
+    if (S.tab === 'fav') renderFavs();
+    if (S.tab === 'nearby') renderNearby();
+  }
+  walk(document.body);
+}
+
+// 按鈕透明度：0 = 實色，50 = 預設，100 = 全透明
+function applyGlass() {
+  const v = S.cfg.op, d = S.theme === 'dark', base = d ? .08 : .42, st = document.documentElement.style;
+  const a = v <= 50 ? base + (50 - v) / 50 * (d ? .30 : .50) : base * (100 - v) / 50;
+  st.setProperty('--glass', `rgba(255,255,255,${a.toFixed(3)})`);
+  st.setProperty('--glass-hi', `rgba(255,255,255,${Math.min(1, a + (d ? .08 : .30)).toFixed(3)})`);
+}
+document.addEventListener('input', e => {
+  if (e.target.id === 'opRange') { S.cfg.op = Number(e.target.value); saveCfg(); applyGlass(); }
+});
+
+// 通知：優先經 Service Worker 顯示（Android 必須；螢幕鎖定或在其他程式時仍可顯示）
+let SWR = null;
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(r => {
+    SWR = r;
+    if (r.periodicSync) r.periodicSync.register('kmb-news', { minInterval: 15 * 60 * 1000 }).catch(() => {});
+  }).catch(() => {});
+}
+function notify(title, body, tag) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const opt = { body, tag, renotify: true, vibrate: [200, 100, 200], data: { url: location.href } };
+  const fallback = () => { try { new Notification(title, opt); } catch { /* 略過 */ } };
+  if (SWR) SWR.showNotification(title, opt).catch(fallback); else fallback();
+}
+function saveAlerts() { store.set('kmb_alerts', [...S.alerts]); }
+
+// 運輸署「特別交通消息」，只保留與巴士有關的項目
+const TD_URL = 'https://resource.data.one.gov.hk/td/en/specialtrafficnews.xml';
+const BUS_RE = /巴士|九巴|\bbus(es)?\b|KMB/i;
+const urgText = x => (LANG === 'en' && x.en) || x.tc;
+async function fetchUrgent() {
+  try {
+    const res = await fetch(TD_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/xml');
+    const g = (m, t) => { const e = m.getElementsByTagName(t)[0]; return e ? e.textContent.trim() : ''; };
+    S.urg = [...doc.getElementsByTagName('message')].map(m => ({ id: g(m, 'msgID'), tc: g(m, 'ChinText'), en: g(m, 'EngText') }))
+      .filter(x => x.id && BUS_RE.test(`${x.tc} ${x.en}`));
+    S.urgAt = new Date(); S.urgErr = false;
+    const seen = store.get('kmb_urg_seen', null); // 第一次只記錄，不會一次過彈出舊消息
+    if (seen) for (const x of S.urg) if (!seen.includes(x.id)) {
+      const t = urgText(x).split('\n').map(z => z.trim()).filter(Boolean);
+      pushMsg('urgent', '緊急消息', t.join('\n').slice(0, 240), `urg|${x.id}`);
+      notify('運輸署緊急消息', (t[0] || '').slice(0, 80), `urg|${x.id}`);
+    }
+    store.set('kmb_urg_seen', S.urg.map(x => x.id));
+  } catch (err) { console.error(err); S.urgErr = true; }
+  renderUrgent(); renderHomeUrg();
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.ready) fetchUrgent(); });
+
+function renderUrgent() {
+  const el = $('#urgBody');
+  if (!el) return;
+  if (!S.urg.length) {
+    el.innerHTML = S.urgErr ? '<div class="status">未能取得運輸署消息，請稍後再試，或<a href="https://www.td.gov.hk/tc/special_news/spnews.htm" target="_blank" rel="noopener">到運輸署網站查看</a></div>'
+      : '<div class="status">暫時沒有與巴士相關的緊急消息</div>';
+    return;
+  }
+  el.innerHTML = S.urg.map(x => {
+    const t = urgText(x).split('\n').map(z => z.trim()).filter(Boolean);
+    return `<div class="msg urg"><span class="msg-ic">${ic('bell')}</span><div class="msg-tx"><b>${esc(t[0])}</b><p>${esc(t.slice(1).join('\n').slice(0, 500))}</p><small>${esc('運輸署 · ' + (S.urgAt ? hms(S.urgAt) : ''))}</small></div></div>`;
+  }).join('');
+}
+function renderHomeUrg() {
+  const el = $('#homeUrg');
+  if (el) el.innerHTML = S.urg.length ? `<button type="button" class="card urgbar" data-act="tab" data-tab="msg">${ic('bell')}<span class="card-text"><b>緊急消息</b><small>${'運輸署有 ' + S.urg.length + ' 則與巴士相關的通知'}</small></span>${ic('chev', 'chev')}</button>` : '';
+}
+
 /* ========== 新功能：到站提醒、趕車提示、分享班次 ========== */
 const alertKey = (r, seq) => `${r.route}|${r.bound}|${r.service_type}|${seq}`;
 
@@ -1260,6 +1400,7 @@ function toggleAlert(seq) {
     toast(`已設定：${S.cur.route} 剩 ${S.cfg.alertMin} 分鐘內提醒你（切換分頁也會提醒，請保持網頁開啟）`);
     checkAlerts();
   }
+  saveAlerts();
   syncBells();
   syncAlertTimer();
 }
@@ -1296,7 +1437,7 @@ function fireIfDue(a, list) {
     toast(msg);
     pushMsg('alert', '到站提醒', msg);
     if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-    if ('Notification' in window && Notification.permission === 'granted') { try { new Notification('九巴報站', { body: msg }); } catch { /* 略過 */ } }
+    notify('九巴報站', msg, `eta|${a.route}|${a.seq}`); saveAlerts();
   } else if (first > S.cfg.alertMin + 2) a.fired = false; // 班次駛過後重新啟用
 }
 
@@ -1321,7 +1462,7 @@ async function shareEta() {
   if (!S.cur || !S.curStops.length) return;
   const s = S.curStops.find(x => x.seq === S.selSeq) || S.curStops[0];
   const v = etaView(S.etaBySeq[s.seq]);
-  const text = `${S.cur.route} 往 ${S.cur.dest_tc}｜${s.info ? s.info.name : '車站'}：${v.off ? v.sub : v.num + v.unit}`;
+  const text = `${S.cur.route} 往 ${S.cur.dest}｜${s.info ? s.info.name : '車站'}：${v.off ? v.sub : v.num + v.unit}`;
   try {
     if (navigator.share) await navigator.share({ text });
     else { await navigator.clipboard.writeText(text); toast('已複製班次資訊'); }
@@ -1329,7 +1470,7 @@ async function shareEta() {
 }
 
 /* ========== 訊息中心 ========== */
-const MSG_ICON = { route: 'map', stop: 'pin', note: 'msg', alert: 'bell' };
+const MSG_ICON = { route: 'map', stop: 'pin', note: 'msg', alert: 'bell', urgent: 'bell' };
 
 function pushMsg(type, title, body, key) {
   if (key && S.msgs.some(m => m.k === key)) return;
@@ -1368,31 +1509,24 @@ function renderMsgs() {
         <div class="msg-tx"><b>${esc(m.title)}</b><p>${esc(m.body)}</p><small>${esc(ago(m.ts))}</small></div></div>`).join('')
     : '<div class="status">暫時沒有訊息。<br>你收藏或查看過的路線，如有終點站改動、<br>站位轉移或特別班次備註，會顯示在這裡。</div>';
   renderSettings();
-  renderStats();
+  renderUrgent();
 }
 
 const sw = (act, on, label) => `<button type="button" class="switch" role="switch" data-act="${act}" aria-checked="${on}" aria-label="${label}"></button>`;
 
 function renderSettings() {
   const c = S.cfg;
+  const pill = (a, v, on, txt) => `<button type="button" class="pill" data-act="${a}" data-v="${v}" aria-pressed="${on}">${txt}</button>`;
+  const perm = 'Notification' in window ? Notification.permission : 'denied';
+  const ns = perm === 'granted' ? '已開啟：切換到其他程式也會收到提醒' : perm === 'denied' ? '已被瀏覽器封鎖，請在瀏覽器網站設定中允許通知' : '按開關允許通知，切換到其他程式也會收到提醒';
   $('#setBody').innerHTML = `
-    <div class="set-row"><div><b>到站提醒時間</b><small>巴士剩餘幾多分鐘內通知你</small></div>
-      <div class="seg">${[2, 3, 5, 10].map(n => `<button type="button" class="pill" data-act="cfg-alert" data-v="${n}" aria-pressed="${c.alertMin === n}">${n} 分</button>`).join('')}</div></div>
+    <div class="set-row"><div><b>語言</b></div><div class="seg">${[['tc', '繁'], ['sc', '简'], ['en', 'EN']].map(([v, t]) => pill('cfg-lang', v, LANG === v, t)).join('')}</div></div>
+    <div class="set-row"><div><b>按鈕透明度</b><small>向右拉，按鈕越透明</small></div><input id="opRange" type="range" min="0" max="100" step="5" value="${c.op}" aria-label="按鈕透明度" style="width:130px;accent-color:var(--red)"></div>
+    <div class="set-row"><div><b>到站提醒時間</b><small>巴士剩餘幾多分鐘內通知你</small></div><div class="seg">${[2, 3, 5, 10].map(n => pill('cfg-alert', n, c.alertMin === n, n + ' 分')).join('')}</div></div>
+    <div class="set-row"><div><b>通知</b><small>${ns}</small></div>${sw('cfg-notif', perm === 'granted', '通知')}</div>
     <div class="set-row"><div><b>螢幕常亮</b><small>查看班次時不會自動熄屏，較耗電</small></div>${sw('cfg-wake', c.wake, '螢幕常亮')}</div>
-    <div class="set-row"><div><b>收集使用資料</b><small>記錄常查路線，並比對路線及站位有否變更。資料只存在這部裝置，不會上傳</small></div>${sw('cfg-collect', c.collect, '收集使用資料')}</div>
-    <div class="set-row"><div><b class="danger">清除全部本機資料</b><small>收藏、最近查看、訊息及統計都會刪除</small></div>
+    <div class="set-row"><div><b class="danger">清除全部本機資料</b><small>收藏、最近查看、訊息及設定都會刪除</small></div>
       <button type="button" class="pill" data-act="wipe">清除</button></div>`;
-}
-
-function renderStats() {
-  const ent = Object.entries(S.stats.routes);
-  const top = ent.sort((a, b) => b[1].n - a[1].n).slice(0, 5);
-  const watching = Object.keys(store.get('kmb_snap', {})).length;
-  $('#statBody').innerHTML = `<div class="stat-grid">
-      <div><b>${S.stats.total}</b><small>查看路線次數</small></div>
-      <div><b>${ent.length}</b><small>查看過的路線</small></div>
-      <div><b>${watching}</b><small>監察中的方向</small></div></div>` +
-    (top.length ? `<div class="chips">${top.map(([r, e]) => `<button type="button" class="chip" data-act="go-route" data-route="${esc(r)}">${esc(r)}<i>${e.n} 次</i></button>`).join('')}</div>` : '');
 }
 
 const saveCfg = () => store.set('kmb_cfg', S.cfg);
@@ -1413,10 +1547,10 @@ const r4 = n => Math.round(n * 1e4) / 1e4;
 const watchList = () => [...new Set([...S.favs.map(f => f.route), ...S.recent])].slice(0, 8);
 
 function trackStops(r, stops) {
-  if (!S.cfg.collect || !stops || !stops.length) return;
+  if (!stops || !stops.length) return;
   const snap = store.get('kmb_snap', {});
   const key = `${r.route}|${r.bound}|${r.service_type}`;
-  const now = stops.map(s => [s.id, s.info ? s.info.name : '', s.info ? r4(s.info.lat) : 0, s.info ? r4(s.info.lng) : 0]);
+  const now = stops.map(s => [s.id, s.info ? s.info.n.tc : '', s.info ? r4(s.info.lat) : 0, s.info ? r4(s.info.lng) : 0]);
   if (snap[key]) diffStops(r, snap[key].s, now);
   snap[key] = { t: Date.now(), s: now };
   const keys = Object.keys(snap);
@@ -1453,7 +1587,7 @@ function diffStops(r, oldS, newS) {
   for (const a of added) if (!used.has(a[0])) items.push(`新增停靠：「${a[1]}」`);
   if (!items.length) return;
   const body = items.slice(0, 5).join('；') + (items.length > 5 ? `…等共 ${items.length} 項` : '');
-  pushMsg('stop', `${r.route} 往 ${r.dest_tc}：站點有變`, body, `stop|${r.route}|${r.bound}|${items.join('|')}`.slice(0, 240));
+  pushMsg('stop', `${r.route} 往 ${r.dest}：站點有變`, body, `stop|${r.route}|${r.bound}|${items.join('|')}`.slice(0, 240));
 }
 
 const prettySig = sig => sig.split(';').filter(x => !x.endsWith(':-')).map(x => {
@@ -1479,7 +1613,7 @@ function trackRoutes() {
 }
 
 async function checkWatched() {
-  if (!S.cfg.collect || !S.ready) return;
+  if (!S.ready) return;
   trackRoutes();
   for (const rt of watchList().slice(0, 6)) {
     const m = S.routeMap.get(rt);
@@ -1494,7 +1628,6 @@ async function checkWatched() {
 // 收集九巴在班次上的特別備註（例如尾班車、特別班次），每日每條路線同一備註只記一次
 const NOISE = /^(原定班次|預定班次|預定|原定)$/;
 function collectRemarks(r, items, stops) {
-  if (!S.cfg.collect) return;
   const day = new Date().toDateString();
   const seen = new Set();
   for (const it of items) {
@@ -1502,7 +1635,7 @@ function collectRemarks(r, items, stops) {
     if (!t || NOISE.test(t) || it.dir !== r.bound || seen.has(t)) continue;
     seen.add(t);
     const s = stops.find(x => x.seq === Number(it.seq));
-    pushMsg('note', `${r.route} 往 ${r.dest_tc}：${t}`, `九巴班次備註「${t}」${s && s.info ? `（例如 ${s.info.name} 一帶）` : ''}`, `note|${day}|${r.route}|${r.bound}|${t}`);
+    pushMsg('note', `${r.route} 往 ${r.dest}：${t}`, `九巴班次備註「${t}」${s && s.info ? `（例如 ${s.info.name} 一帶）` : ''}`, `note|${day}|${r.route}|${r.bound}|${t}`);
   }
 }
 
@@ -1536,7 +1669,7 @@ function favStopRow(f) {
   const r = findEntry(f.route, f.bound, f.service_type);
   if (!r) return '';
   const info = S.stops[f.stop];
-  return `<div class="fav-row" data-key="${esc(favKey(f))}" data-dest="${esc(r.dest_tc)}">
+  return `<div class="fav-row" data-key="${esc(favKey(f))}" data-dest="${esc(r.dest)}">
     <button type="button" class="card" style="flex:1;min-width:0" data-act="go-route" data-route="${esc(f.route)}" data-bound="${esc(f.bound)}" data-st="${esc(f.service_type)}" data-seq="${f.seq}">
       <span class="plate sm">${esc(f.route)}</span>
       <span class="card-text"><b>${esc(info ? info.name : '（未知車站）')}</b><small data-sub></small></span>
@@ -1636,7 +1769,7 @@ document.addEventListener('click', e => {
       if (!S.cur) break;
       const added = toggleFav({ t: 'r', route: S.cur.route, bound: S.cur.bound, service_type: S.cur.service_type });
       syncRouteStar();
-      toast(added ? `已收藏 ${S.cur.route} 往 ${S.cur.dest_tc}` : '已取消收藏');
+      toast(added ? `已收藏 ${S.cur.route} 往 ${S.cur.dest}` : '已取消收藏');
       break;
     }
     case 'unfav': {
@@ -1668,12 +1801,14 @@ document.addEventListener('click', e => {
     case 'msg-clear': S.msgs = []; store.set('kmb_msgs', S.msgs); updateBadge(); renderMsgs(); break;
     case 'cfg-alert': S.cfg.alertMin = Number(d.v); saveCfg(); renderSettings(); toast(`剩 ${S.cfg.alertMin} 分鐘內提醒你`); break;
     case 'cfg-wake': S.cfg.wake = !S.cfg.wake; saveCfg(); setWake(); renderSettings(); break;
-    case 'cfg-collect':
-      S.cfg.collect = !S.cfg.collect; saveCfg(); renderSettings();
-      toast(S.cfg.collect ? '已開啟資料收集' : '已停止收集，現有統計仍保留');
+    case 'cfg-lang': S.cfg.lang = d.v; saveCfg(); applyLang(); break;
+    case 'cfg-notif':
+      if (!('Notification' in window)) toast('此瀏覽器不支援通知');
+      else if (Notification.permission === 'default') Notification.requestPermission().then(renderSettings);
+      else toast('請在瀏覽器的網站設定中更改通知權限');
       break;
     case 'wipe':
-      if (confirm('確定清除這部裝置上的全部收藏、記錄、訊息及統計？')) {
+      if (confirm('確定清除這部裝置上的全部收藏、最近查看、訊息及設定？')) {
         try { Object.keys(localStorage).filter(k => k.startsWith('kmb_')).forEach(k => localStorage.removeItem(k)); } catch { /* 略過 */ }
         location.reload();
       }
@@ -1707,8 +1842,9 @@ async function boot() {
   try {
     const [stopsJ, routesJ] = await Promise.all([fetchJSON(`${API}/stop/`), fetchJSON(`${API}/route/`)]);
     S.stops = {};
-    for (const s of stopsJ.data) S.stops[s.stop] = { name: s.name_tc, lat: parseFloat(s.lat), lng: parseFloat(s.long) };
+    for (const s of stopsJ.data) S.stops[s.stop] = { n: { tc: s.name_tc, en: s.name_en, sc: s.name_sc }, get name() { return this.n[LANG] || this.n.tc; }, lat: parseFloat(s.lat), lng: parseFloat(s.long) };
     S.routes = routesJ.data;
+    for (const r of S.routes) Object.defineProperties(r, { dest: { get() { return this[`dest_${LANG}`] || this.dest_tc; } }, orig: { get() { return this[`orig_${LANG}`] || this.orig_tc; } } });
     indexRoutes(S.routes);
     S.ready = true;
     buildKeyboard();
@@ -1718,12 +1854,15 @@ async function boot() {
     bootEl.hidden = true;
     setWake();
     setTimeout(checkWatched, 1500);
+    syncAlertTimer(); fetchUrgent();
+    if (!S.tUrg) S.tUrg = setInterval(() => { if (!document.hidden) fetchUrgent(); }, 120000);
   } catch (err) {
     console.error('載入 API 失敗:', err);
     bootEl.innerHTML = '<div>無法載入路線資料<br>請檢查網絡連線後重試</div><button type="button" class="pill" data-act="reboot">重試</button>';
   }
 }
 
+applyLang();
 applyTheme(S.theme);
 updateBadge();
 setMapOn(S.mapOn);
