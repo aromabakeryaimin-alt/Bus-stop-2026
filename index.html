@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<title>九巴報站 Lite</title>
+<title>九巴報站 Lite · Beta 0.9</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -126,16 +126,16 @@ h2 { margin: 0; }
 .pill[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
 #routeFavBtn[aria-pressed="true"] .ic { fill: var(--amber); stroke: var(--amber); }
 
-/* 巴士車頭 LED 顯示牌：整個 App 的視覺重點 */
-.led {
-  flex: none; display: flex; align-items: baseline; justify-content: flex-end; gap: 4px;
-  min-width: 76px; padding: 6px 9px 4px; background: var(--panel); border-radius: 6px; box-shadow: inset 0 0 0 1px #2b2b2b;
-}
-.led b { font: 400 27px/1 "DotGothic16", ui-monospace, monospace; color: var(--led); text-shadow: 0 0 7px rgba(255,176,32,.5); font-weight: 400; }
-.led small { font-size: 10.5px; color: #cf9520; min-width: 1px; }
-.led.off b { color: #6a5528; text-shadow: none; }
-.led.sm { min-width: 60px; padding: 4px 7px 3px; }
-.led.sm b { font-size: 20px; }
+/* 到站時間：純文字，無外框。深色模式為白字，淺色模式自動改用深色字以免看不見 */
+:root { --eta: var(--ink); }
+:root[data-theme="dark"] { --eta: #fff; }
+.led { flex: none; display: flex; align-items: baseline; justify-content: flex-end; gap: 2px; min-width: 64px; }
+.led b { font: 700 26px/1 var(--num); color: var(--eta); font-variant-numeric: tabular-nums; }
+.led small { font-size: 13px; color: var(--eta); }
+.led.off b { color: var(--muted); font-weight: 600; }
+.led.sm { min-width: 52px; }
+.led.sm b { font-size: 21px; }
+.brand .beta { background: var(--muted); }
 
 /* ---------- 首頁 ---------- */
 .fake-field {
@@ -252,11 +252,13 @@ h2 { margin: 0; }
   <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 003.4 0"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></symbol>
 </svg>
 
 <div class="app" id="app">
   <header class="top">
-    <div class="brand">九巴報站<span class="lite">Lite</span></div>
+    <div class="brand">九巴報站<span class="lite">Lite</span><span class="lite beta">Beta 0.9</span></div>
     <div class="top-r">
       <time id="clock">--:--</time>
       <button type="button" class="icon-btn" id="themeBtn" data-act="theme" aria-label="切換深色或淺色模式"><svg class="ic"><use href="#i-moon"/></svg></button>
@@ -270,7 +272,7 @@ h2 { margin: 0; }
       <div id="homeRecent"></div>
       <h2 class="sec">熱門路線</h2>
       <div id="homePopular" class="list"></div>
-      <p class="credit">班次資料來自九巴開放數據（DATA.GOV.HK），預測到站時間只供參考，請以車站及巴士公司公佈為準。本網頁並非九巴官方服務。</p>
+      <p class="credit">班次資料來自九巴開放數據（DATA.GOV.HK），預測到站時間只供參考，請以車站及巴士公司公佈為準。本網頁並非九巴官方服務。<br>版本：Beta 0.9</p>
     </section>
 
     <!-- 搜尋 -->
@@ -288,6 +290,7 @@ h2 { margin: 0; }
         <button type="button" class="pill" id="routeFavBtn" data-act="fav-route" aria-pressed="false"><svg class="ic"><use href="#i-star"/></svg>收藏路線</button>
         <button type="button" class="pill" id="mapBtn" data-act="toggle-map" aria-pressed="true"><svg class="ic"><use href="#i-map"/></svg>地圖</button>
         <button type="button" class="pill" data-act="nearest"><svg class="ic"><use href="#i-locate"/></svg>最近的站</button>
+        <button type="button" class="pill" data-act="share"><svg class="ic"><use href="#i-share"/></svg>分享</button>
         <button type="button" class="pill" data-act="refresh" aria-label="重新整理"><svg class="ic"><use href="#i-refresh"/></svg></button>
         <span class="updated" id="updated"></span>
       </div>
@@ -339,6 +342,8 @@ const API = 'https://data.etabus.gov.hk/v1/transport/kmb';
 const REFRESH_MS = 30000;
 const TICK_MS = 10000;
 const NEAR_M = 500;
+const ALERT_MIN = 3;      // 到站提醒：剩 3 分鐘內通知
+const WALK_M_PER_MIN = 75; // 步行速度約 75 米/分鐘
 const POPULAR = ['1A', '273A', '270B', '78B', '276B', '960'];
 const RED = '#d7000f';
 const TILES = {
@@ -376,13 +381,13 @@ const S = {
   cur: null, dirs: [], curStops: [], etaBySeq: {}, selSeq: null, updatedAt: null,
   stopCache: new Map(), offset: 0, reqId: 0,
   favs: normalizeFavs(store.get('kmb_favorites', [])),
-  recent: store.get('kmb_recent', []),
+  recent: [].concat(store.get('kmb_recent', [])).filter(x => typeof x === 'string'),
   favEta: {}, favReq: 0,
   nbOpen: null, nbData: null, nbReq: 0,
   theme: store.get('kmb_theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   mapOn: store.get('kmb_map', true),
   tRefresh: null, tTick: null, searchTimer: null,
-  markers: new Map(), needFit: false
+  markers: new Map(), needFit: false, pos: null, alerts: new Map()
 };
 
 let map = null, layer = null, tileLayer = null;
@@ -395,15 +400,15 @@ const findEntry = (route, bound, st) =>
   S.routes.find(r => r.route === route && r.bound === bound && (!st || r.service_type === String(st)));
 
 function indexRoutes(list) {
-  const map = new Map();
+  const idx = new Map();
   for (const r of list) {
-    const e = map.get(r.route) || {};
+    const e = idx.get(r.route) || {};
     const old = e[r.bound];
     if (!old || Number(r.service_type) < Number(old.service_type)) e[r.bound] = r;
-    map.set(r.route, e);
+    idx.set(r.route, e);
   }
-  S.routeMap = map;
-  S.routeNos = [...map.keys()].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+  S.routeMap = idx;
+  S.routeNos = [...idx.keys()].sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
 }
 
 function dirsFor(routeNo, pick) {
@@ -451,7 +456,7 @@ function etaView(list) {
   const parts = [];
   if (live[0].rmk) parts.push(live[0].rmk);
   if (live.length > 1) parts.push(`之後 ${live.slice(1).map(e => fmt(e.m)).join('、')} 分鐘`);
-  return { num: fmt(live[0].m), unit: '分鐘', off: false, sub: parts.join('，') };
+  return { num: fmt(live[0].m), unit: '分鐘', off: false, sub: parts.join('，'), first: live[0].m };
 }
 
 /* ========== 收藏 / 最近查看 ========== */
@@ -653,7 +658,7 @@ function goRoute(route, bound, opt = {}) {
 
 /* ========== 載入路線班次 ========== */
 async function loadRoute(r, { seq = null, silent = false } = {}) {
-  const id = ++S.reqId; // 只接受最新一次請求的結果，避免連續輸入時舊資料覆蓋新資料
+  const id = silent ? S.reqId : ++S.reqId; // 背景更新不會作廢載入中的請求
   const st = $('#status');
   const key = `${r.route}|${r.bound}|${r.service_type}`;
 
@@ -675,6 +680,7 @@ async function loadRoute(r, { seq = null, silent = false } = {}) {
         });
     const [stops, eta] = await Promise.all([stopsP, fetchJSON(`${API}/route-eta/${r.route}/${r.service_type}`, true)]);
     if (id !== S.reqId) return;
+    const full = !silent || !S.curStops.length;
 
     setOffset(eta);
     S.etaBySeq = groupEta(eta.data || [], r.bound);
@@ -683,7 +689,7 @@ async function loadRoute(r, { seq = null, silent = false } = {}) {
     up.textContent = `更新於 ${hms(S.updatedAt)}`;
     up.classList.remove('bad');
 
-    if (!silent) {
+    if (full) {
       S.curStops = stops;
       st.textContent = '';
       renderStopList();
@@ -716,17 +722,20 @@ function renderStopList() {
         <span class="led off"><b data-num>--</b><small data-unit></small></span>
       </button>
       <button type="button" class="star" data-act="fav-stop" data-seq="${s.seq}" aria-pressed="false" aria-label="收藏此站">${ic('star')}</button>
+      <button type="button" class="star" data-act="alert-stop" data-seq="${s.seq}" aria-pressed="false" aria-label="到站提醒">${ic('bell')}</button>
     </div>`).join('');
   syncStars();
 }
 
 function paintEtas() {
+  checkAlerts();
   for (const row of $$('#stopList .stop')) {
     const v = etaView(S.etaBySeq[row.dataset.seq]);
     $('.led', row).classList.toggle('off', v.off);
     $('[data-num]', row).textContent = v.num;
     $('[data-unit]', row).textContent = v.unit;
-    $('[data-sub]', row).textContent = v.sub;
+    const walk = Number(row.dataset.seq) === S.selSeq ? walkNote(S.curStops.find(x => x.seq === S.selSeq), v) : '';
+    $('[data-sub]', row).textContent = [v.sub, walk].filter(Boolean).join('，');
   }
 }
 
@@ -738,6 +747,7 @@ function syncStars() {
     const on = favIndex({ t: 's', route: S.cur.route, bound: S.cur.bound, service_type: S.cur.service_type, stop: s.id, seq: s.seq }) > -1;
     $('.star', row).setAttribute('aria-pressed', on);
   }
+  syncBells();
 }
 
 function syncRouteStar() {
@@ -822,6 +832,7 @@ function selectStop(seq, { scroll = false } = {}) {
   hideKeyboard();
   $$('#stopList .stop').forEach(r => r.classList.toggle('sel', Number(r.dataset.seq) === seq));
   styleMarkers();
+  paintEtas();
   const s = S.curStops.find(x => x.seq === seq);
   if (map && s && s.info && mapShown()) {
     S.needFit = false;
@@ -860,6 +871,7 @@ async function nearestOnRoute() {
   if (!S.cur || !S.curStops.length) return;
   try {
     const { coords } = await getPos();
+    S.pos = { lat: coords.latitude, lng: coords.longitude };
     let best = null;
     for (const s of S.curStops) {
       if (!s.info) continue;
@@ -876,6 +888,7 @@ async function nearestOnRoute() {
 
 /* ========== 附近車站 ========== */
 async function renderNearby() {
+  if (!S.ready) return;
   const body = $('#nbBody');
   const id = ++S.nbReq;
   S.nbOpen = null; S.nbData = null;
@@ -883,6 +896,7 @@ async function renderNearby() {
   try {
     const { coords } = await getPos();
     if (id !== S.nbReq) return;
+    S.pos = { lat: coords.latitude, lng: coords.longitude };
     const all = Object.entries(S.stops)
       .map(([sid, s]) => ({ id: sid, name: s.name, d: dist(coords.latitude, coords.longitude, s.lat, s.lng) }))
       .filter(s => Number.isFinite(s.d))
@@ -890,7 +904,7 @@ async function renderNearby() {
     let near = all.filter(s => s.d <= NEAR_M).slice(0, 15);
     let note = `${NEAR_M} 米內共 ${near.length} 個車站，點選車站查看即時班次。`;
     if (!near.length) { near = all.slice(0, 5); note = `${NEAR_M} 米內沒有巴士站，以下為最近的 5 個車站。`; }
-    body.innerHTML = `<p class="note">${note}</p><div class="sec" style="padding:0"></div><div class="list" style="margin-top:10px">${near.map(nbCard).join('')}</div>`;
+    body.innerHTML = `<p class="note">${note}</p><div class="list" style="margin-top:10px">${near.map(nbCard).join('')}</div>`;
   } catch (e) {
     if (id !== S.nbReq) return;
     body.innerHTML = `<div class="status">${esc(geoMsg(e))}</div>`;
@@ -975,8 +989,69 @@ function paintNb() {
 
 function refreshNearby() { if (S.nbOpen) loadNb(S.nbOpen); }
 
+/* ========== 新功能：到站提醒、趕車提示、分享班次 ========== */
+const alertKey = (r, seq) => `${r.route}|${r.bound}|${r.service_type}|${seq}`;
+
+function toggleAlert(seq) {
+  if (!S.cur) return;
+  const k = alertKey(S.cur, seq);
+  if (S.alerts.has(k)) { S.alerts.delete(k); toast('已取消到站提醒'); }
+  else {
+    const s = S.curStops.find(x => x.seq === seq);
+    S.alerts.set(k, { route: S.cur.route, name: s && s.info ? s.info.name : '此站', seq, fired: false });
+    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+    toast(`已設定：${S.cur.route} 剩 ${ALERT_MIN} 分鐘內提醒你（需停留在此路線頁）`);
+    checkAlerts();
+  }
+  syncBells();
+}
+
+function syncBells() {
+  if (!S.cur) return;
+  for (const row of $$('#stopList .stop')) {
+    $('[data-act="alert-stop"]', row).setAttribute('aria-pressed', S.alerts.has(alertKey(S.cur, Number(row.dataset.seq))));
+  }
+}
+
+function checkAlerts() {
+  if (!S.cur) return;
+  for (const [k, a] of S.alerts) {
+    if (!k.startsWith(`${S.cur.route}|${S.cur.bound}|${S.cur.service_type}|`)) continue;
+    const first = (S.etaBySeq[a.seq] || []).map(e => e.ts ? minsOf(e.ts) : null).find(m => m !== null);
+    if (first === undefined) continue;
+    if (first <= ALERT_MIN && !a.fired) {
+      a.fired = true;
+      const msg = `${a.route} 即將到達「${a.name}」（${first === 0 ? '<1' : first} 分鐘）`;
+      toast(msg);
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+      if ('Notification' in window && Notification.permission === 'granted') { try { new Notification('九巴報站', { body: msg }); } catch { /* 略過 */ } }
+    } else if (first > ALERT_MIN + 2) a.fired = false; // 班次駛過後重新啟用
+  }
+}
+
+// 比較步行時間與巴士到站時間，預測趕不趕得上（需先按「最近的站」取得位置）
+function walkNote(s, v) {
+  if (!S.pos || !s || !s.info || v.off || v.first === undefined) return '';
+  const d = dist(S.pos.lat, S.pos.lng, s.info.lat, s.info.lng);
+  if (d > 3000) return '';
+  const w = Math.max(1, Math.ceil(d / WALK_M_PER_MIN));
+  return `步行約 ${w} 分鐘，${w <= v.first ? '趕得上' : '恐怕趕不及'}`;
+}
+
+async function shareEta() {
+  if (!S.cur || !S.curStops.length) return;
+  const s = S.curStops.find(x => x.seq === S.selSeq) || S.curStops[0];
+  const v = etaView(S.etaBySeq[s.seq]);
+  const text = `${S.cur.route} 往 ${S.cur.dest_tc}｜${s.info ? s.info.name : '車站'}：${v.off ? v.sub : v.num + v.unit}`;
+  try {
+    if (navigator.share) await navigator.share({ text });
+    else { await navigator.clipboard.writeText(text); toast('已複製班次資訊'); }
+  } catch (e) { if (!e || e.name !== 'AbortError') toast('無法分享，請手動複製'); }
+}
+
 /* ========== 收藏頁 ========== */
 function renderFavs() {
+  if (!S.ready) return;
   const el = $('#favBody');
   if (!S.favs.length) {
     el.innerHTML = '<div class="status">還沒有收藏。<br>在路線頁點「收藏路線」，<br>或點站名旁的星號收藏常用站牌。</div>';
@@ -1051,7 +1126,7 @@ function switchTab(tab, { quiet = false } = {}) {
   else if (tab === 'nearby') renderNearby();
   else if (tab === 'search' && !quiet) {
     if (!input.value) { showIdle(); showKeyboard(); }
-    else if (S.cur) refreshSearch();
+    else if (S.cur) { syncStars(); syncRouteStar(); refreshSearch(); }
   }
   syncTimers();
 }
@@ -1115,6 +1190,8 @@ document.addEventListener('click', e => {
     }
     case 'toggle-map': setMapOn(!S.mapOn); break;
     case 'nearest': nearestOnRoute(); break;
+    case 'share': shareEta(); break;
+    case 'alert-stop': toggleAlert(Number(d.seq)); break;
     case 'refresh': if (S.cur) { loadRoute(S.cur, { silent: true }); toast('正在更新班次…'); } break;
     case 'retry': if (S.cur) loadRoute(S.cur); break;
     case 'toggle-stop': toggleNb(d.stop); break;
@@ -1154,6 +1231,7 @@ async function boot() {
     buildKeyboard();
     updateKeys();
     renderHome();
+    if (S.tab === 'fav') renderFavs(); else if (S.tab === 'nearby') renderNearby();
     bootEl.hidden = true;
   } catch (err) {
     console.error('載入 API 失敗:', err);
