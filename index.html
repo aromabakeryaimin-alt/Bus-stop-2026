@@ -27,6 +27,8 @@ video{width:100%;height:100%;object-fit:cover}
   <div id="cam"><video id="v" playsinline muted></video><div id="frame"></div></div>
   <div id="st">按下方按鈕開啟鏡頭</div>
   <button id="cbtn" style="margin-top:12px">開啟鏡頭</button>
+  <button id="pbtn" style="margin-top:10px;background:var(--card);color:var(--tx);border:1px solid var(--bd)">📷 改用拍照掃描（無需 https）</button>
+  <input id="pf" type="file" accept="image/*" capture="environment" hidden>
   <p style="text-align:center;margin-top:10px;font-size:.85rem;opacity:.7">已傳送 <b id="n">0</b> 次　·　掃描結果會即時顯示於電腦終端機</p>
  </div>
 </main>
@@ -53,7 +55,24 @@ $('go').onclick=async()=>{
 $('cbtn').onclick=async()=>{
  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1280}}});
   $('v').srcObject=stream;await $('v').play();$('cbtn').hidden=true;st('請將市民二維碼對準框內');loop()}
- catch(e){st('無法開啟鏡頭：請允許權限，並使用 https 開啟本頁。','bad')}};
+ catch(e){
+  let m='無法開啟鏡頭（'+(e.name||'錯誤')+'）：';
+  if(!window.isSecureContext||!navigator.mediaDevices)m+='本頁不是 https，瀏覽器已封鎖鏡頭。請用 https 網址開啟，或按下方「拍照掃描」。';
+  else if(e.name==='NotAllowedError')m+='鏡頭權限被拒絕。請按網址列左邊 🔒 → 網站設定 → 允許相機，然後重新整理。';
+  else if(e.name==='NotFoundError')m+='找不到鏡頭。';
+  else if(e.name==='NotReadableError')m+='鏡頭被其他程式佔用，請先關閉。';
+  else m+='請改用 Chrome / Safari 直接開啟（不要用 LINE、WhatsApp、Facebook 內置瀏覽器）。';
+  st(m,'bad')}};
+
+/* 後備：用系統相機拍照後解碼（http / file:// 亦可使用） */
+$('pbtn').onclick=()=>$('pf').click();
+$('pf').onchange=e=>{
+ const f=e.target.files[0];if(!f)return;const img=new Image();
+ img.onload=()=>{const s=Math.min(1,1200/img.width);cv.width=img.width*s;cv.height=img.height*s;cx.drawImage(img,0,0,cv.width,cv.height);
+  const q=jsQR(cx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height,{inversionAttempts:'attemptBoth'});
+  URL.revokeObjectURL(img.src);e.target.value='';
+  q&&q.data.startsWith('CSIS.')?send(q.data):st('未能辨識二維碼，請靠近並重新拍攝。','bad')};
+ img.src=URL.createObjectURL(f)};
 
 const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
 function loop(){
