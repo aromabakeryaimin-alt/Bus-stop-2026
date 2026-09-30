@@ -2,9 +2,9 @@
 <html lang="zh-HK" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
-<title>九巴報站 Lite · Beta 0.9</title>
+<title>九巴報站 Lite · Beta 1.0</title>
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,6 +29,15 @@
   --field: #ffffff;
   --key: #ffffff;
   --key-line: #cfd5dc;
+  --glass: rgba(255,255,255,.42);
+  --glass-hi: rgba(255,255,255,.72);
+  --glass-line: rgba(255,255,255,.75);
+  --glass-edge: rgba(20,30,45,.09);
+  --glass-shadow: 0 4px 14px rgba(30,45,70,.10);
+  --glass-tint: rgba(215,0,15,.14);
+  --app-bg: radial-gradient(120% 60% at 0% 0%, rgba(215,0,15,.10), transparent 60%),
+            radial-gradient(90% 55% at 100% 100%, rgba(40,120,255,.14), transparent 60%),
+            linear-gradient(165deg, #eef2f7 0%, #e4e9f1 55%, #ece6ea 100%);
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
   --num: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
@@ -46,12 +55,22 @@
   --field: #1a1e24;
   --key: #1d2229;
   --key-line: #2b323a;
+  --glass: rgba(255,255,255,.08);
+  --glass-hi: rgba(255,255,255,.16);
+  --glass-line: rgba(255,255,255,.20);
+  --glass-edge: rgba(255,255,255,.07);
+  --glass-shadow: 0 4px 16px rgba(0,0,0,.45);
+  --glass-tint: rgba(255,100,112,.20);
+  --app-bg: radial-gradient(120% 60% at 0% 0%, rgba(215,0,15,.22), transparent 60%),
+            radial-gradient(90% 55% at 100% 100%, rgba(50,110,255,.20), transparent 60%),
+            linear-gradient(165deg, #0b0d10 0%, #0e1218 100%);
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
-html, body { height: 100%; margin: 0; overflow: hidden; }
+html, body { height: 100%; margin: 0; overflow: hidden; touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior: none; }
+input, button, select, textarea { font-size: max(16px, 1em); }
 body {
   background: var(--bg);
   color: var(--ink);
@@ -66,7 +85,7 @@ h2 { margin: 0; }
 /* ---------- 版面骨架 ---------- */
 .app {
   position: relative; max-width: 480px; height: 100vh; height: 100dvh; margin: 0 auto;
-  display: flex; flex-direction: column; background: var(--bg); box-shadow: 0 0 0 1px var(--line);
+  display: flex; flex-direction: column; background: var(--app-bg), var(--bg); box-shadow: 0 0 0 1px var(--line);
 }
 .top {
   flex: none; display: flex; align-items: center; justify-content: space-between;
@@ -76,8 +95,11 @@ h2 { margin: 0; }
 .brand .lite { margin-left: 6px; font: 700 13px var(--num); color: #fff; background: var(--red); border-radius: 4px; padding: 1px 6px; vertical-align: 1px; }
 .top-r { display: flex; align-items: center; gap: 4px; }
 .top time { font: 700 19px var(--num); color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .03em; }
-.icon-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); }
-.icon-btn:active { background: var(--soft); }
+.glass, .icon-btn, .pill, .chip, .key, .dir, .fake-field, .star {
+  -webkit-backdrop-filter: blur(14px) saturate(1.6); backdrop-filter: blur(14px) saturate(1.6);
+}
+.icon-btn { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--muted); background: var(--glass); border: 1px solid var(--glass-line); box-shadow: inset 0 1px 0 var(--glass-hi); }
+.icon-btn:active { background: var(--glass-hi); }
 
 .main { flex: 1; min-height: 0; position: relative; }
 .view { position: absolute; inset: 0; display: none; overflow-y: auto; overscroll-behavior: contain; }
@@ -86,12 +108,16 @@ h2 { margin: 0; }
 #view-search.active { display: flex; flex-direction: column; }
 
 .nav {
-  flex: none; display: grid; grid-template-columns: repeat(4, 1fr);
-  background: var(--card); border-top: 1px solid var(--line); padding-bottom: var(--safe-b);
+  flex: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+  margin: 0 8px calc(6px + var(--safe-b)); padding: 4px; border-radius: 22px;
+  background: var(--glass); border: 1px solid var(--glass-line);
+  -webkit-backdrop-filter: blur(18px) saturate(1.7); backdrop-filter: blur(18px) saturate(1.7);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
 }
-.nav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 54px; font-size: 11px; color: var(--muted); }
+.nav button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-height: 50px; border-radius: 18px; font-size: 11px; color: var(--muted); }
+.nav .badge { position: absolute; top: 5px; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--red); color: #fff; font: 700 10.5px/16px var(--num); text-align: center; }
 .nav .ic { width: 22px; height: 22px; }
-.nav button[aria-current="page"] { color: var(--accent); font-weight: 700; box-shadow: inset 0 3px 0 var(--red); }
+.nav button[aria-current="page"] { color: var(--accent); font-weight: 700; background: var(--glass-tint); box-shadow: inset 0 0 0 1px var(--glass-line), inset 0 1px 0 var(--glass-hi); }
 
 /* ---------- 共用元件 ---------- */
 .sec { padding: 16px 16px 6px; font-size: 13px; font-weight: 700; color: var(--muted); }
@@ -115,15 +141,18 @@ h2 { margin: 0; }
 .chev { width: 18px; height: 18px; color: var(--muted); }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 14px 10px; }
-.chip { padding: 3px 12px 2px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); font: 700 18px/1.3 var(--num); letter-spacing: .03em; }
-.chip:active { background: var(--soft); }
+.chip { padding: 3px 12px 2px; border-radius: 999px; border: 1px solid var(--glass-line); background: var(--glass); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi); font: 700 18px/1.3 var(--num); letter-spacing: .03em; }
+.chip:active { background: var(--glass-tint); }
+.chip i { font: 600 11px var(--num); font-style: normal; color: var(--muted); margin-left: 4px; }
 
 .pill {
   display: inline-flex; align-items: center; gap: 5px; padding: 6px 11px; border-radius: 999px;
-  background: var(--card); border: 1px solid var(--line); font-size: 12.5px; font-weight: 600; white-space: nowrap;
+  background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
 }
+.pill:active { background: var(--glass-hi); }
 .pill .ic { width: 16px; height: 16px; }
-.pill[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.pill[aria-pressed="true"] { color: var(--accent); background: var(--glass-tint); border-color: var(--accent); }
 #routeFavBtn[aria-pressed="true"] .ic { fill: var(--amber); stroke: var(--amber); }
 
 /* 到站時間：純文字，無外框。深色模式為白字，淺色模式自動改用深色字以免看不見 */
@@ -133,6 +162,11 @@ h2 { margin: 0; }
 .led b { font: 700 26px/1 var(--num); color: var(--eta); font-variant-numeric: tabular-nums; }
 .led small { font-size: 13px; color: var(--eta); }
 .led.off b { color: var(--muted); font-weight: 600; }
+.led.soon { min-width: 74px; }
+.led.soon b { font: 800 16px/1.1 "PingFang HK", "Noto Sans HK", "Microsoft JhengHei", system-ui, sans-serif; color: var(--accent); letter-spacing: .02em; animation: soon 1.6s ease-in-out infinite; }
+.led.sm.soon { min-width: 64px; }
+.led.sm.soon b { font-size: 14px; }
+@keyframes soon { 50% { opacity: .45; } }
 .led.sm { min-width: 52px; }
 .led.sm b { font-size: 21px; }
 .brand .beta { background: var(--muted); }
@@ -140,7 +174,7 @@ h2 { margin: 0; }
 /* ---------- 首頁 ---------- */
 .fake-field {
   display: flex; align-items: center; gap: 10px; width: calc(100% - 24px); margin: 12px 12px 4px; height: 50px; padding: 0 14px;
-  border-radius: 10px; background: var(--field); border: 1px solid var(--line); color: var(--muted); font-size: 15px;
+  border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi); color: var(--muted); font-size: 15px;
 }
 .credit { padding: 18px 16px 26px; font-size: 11.5px; color: var(--muted); line-height: 1.6; }
 
@@ -149,8 +183,9 @@ h2 { margin: 0; }
 .field { position: relative; }
 .field > .ic { position: absolute; left: 13px; top: 50%; translate: 0 -50%; color: var(--muted); pointer-events: none; }
 .search {
-  width: 100%; height: 48px; padding: 0 44px 0 42px; border-radius: 10px; border: 1px solid var(--line);
-  background: var(--field); color: var(--ink); font: 700 26px var(--num); letter-spacing: .05em; text-transform: uppercase; caret-color: transparent;
+  width: 100%; height: 48px; padding: 0 44px 0 42px; border-radius: 14px; border: 1px solid var(--glass-line);
+  -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  background: var(--glass); color: var(--ink); font: 700 26px var(--num); letter-spacing: .05em; text-transform: uppercase; caret-color: transparent;
 }
 .search::placeholder { font: 400 15px "PingFang HK", "Noto Sans HK", "Microsoft JhengHei", system-ui, sans-serif; letter-spacing: 0; text-transform: none; color: var(--muted); }
 .kb-open .search { border-color: var(--accent); }
@@ -161,11 +196,11 @@ h2 { margin: 0; }
 
 .dirs { display: none; gap: 8px; padding: 0 12px 8px; }
 .has-route .dirs { display: flex; }
-.dir { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); }
+.dir { flex: 1; min-width: 0; padding: 7px 10px; border-radius: 14px; background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi); }
 .dir span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dir-to { font-weight: 700; font-size: 14px; }
 .dir-from { font-size: 11px; color: var(--muted); }
-.dir.on { background: var(--red); border-color: var(--red); color: #fff; }
+.dir.on { background: linear-gradient(180deg, rgba(235,40,55,.88), rgba(200,0,15,.82)); border-color: rgba(255,255,255,.35); color: #fff; }
 .dir.on .dir-from { color: rgba(255,255,255,.88); }
 
 .tools { display: none; align-items: center; gap: 6px; padding: 0 12px 8px; overflow-x: auto; scrollbar-width: none; }
@@ -173,11 +208,52 @@ h2 { margin: 0; }
 .updated { margin-left: auto; padding-left: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .updated.bad { color: var(--accent); font-weight: 700; }
 
-.map-wrap { display: none; flex: none; height: 180px; position: relative; border-block: 1px solid var(--line); }
+.map-wrap {
+  display: none; flex: none; height: clamp(230px, 38dvh, 400px); position: relative; margin: 0 12px 8px;
+  border-radius: 18px; overflow: hidden; border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow);
+  isolation: isolate; transition: height .25s ease;
+}
+.map-wrap.big { height: 64dvh; }
+.map-ctl { position: absolute; top: 10px; right: 10px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; }
+.map-ctl button {
+  width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; color: var(--ink);
+  background: var(--glass-hi); border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  -webkit-backdrop-filter: blur(14px) saturate(1.6); backdrop-filter: blur(14px) saturate(1.6);
+}
+.map-ctl button:active { background: var(--glass-tint); }
+.map-ctl .sep { height: 2px; }
+.map-legend {
+  position: absolute; left: 10px; bottom: 10px; z-index: 1000; display: flex; gap: 10px; padding: 5px 11px; border-radius: 999px;
+  background: var(--glass-hi); border: 1px solid var(--glass-line); font-size: 11.5px; font-weight: 600; pointer-events: none;
+  -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+}
+.map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
 .has-route:not(.kb-open):not(.map-off):not(.no-map) .map-wrap { display: block; }
 .no-map [data-act="toggle-map"] { display: none; }
 #map { position: absolute; inset: 0; background: var(--soft); }
 .leaflet-container { font-family: inherit; }
+.leaflet-control-attribution { font-size: 9.5px !important; background: var(--glass-hi) !important; color: var(--muted) !important; border-radius: 8px 0 0 0; }
+.leaflet-control-attribution a { color: var(--muted) !important; }
+.mk-wrap, .arr-wrap, .me-wrap { background: none; border: 0; }
+.mk {
+  width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2.5px solid var(--red); color: #a3000c;
+  font: 700 12.5px/19px var(--num); text-align: center; box-shadow: 0 1px 5px rgba(0,0,0,.4); transition: transform .15s ease;
+}
+.mk.first { background: #16a34a; border-color: #fff; color: #fff; font-family: inherit; font-size: 11px; font-weight: 800; }
+.mk.last { background: #15181d; border-color: #fff; color: #fff; font-family: inherit; font-size: 11px; font-weight: 800; }
+.z-low .mk { transform: scale(.5); color: transparent; }
+.z-low .mk.first, .z-low .mk.last { transform: scale(.85); color: #fff; }
+.mk-wrap.sel .mk { transform: scale(1.4); background: var(--red); color: #fff; border-color: #fff; box-shadow: 0 0 0 4px rgba(215,0,15,.30), 0 2px 8px rgba(0,0,0,.45); }
+.arr { width: 16px; height: 16px; font-size: 13px; line-height: 16px; text-align: center; color: var(--red); text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 2px #fff; }
+.z-low .arr-wrap { display: none; }
+.me { width: 18px; height: 18px; border-radius: 50%; background: #2b7bff; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(43,123,255,.28), 0 1px 4px rgba(0,0,0,.4); }
+.leaflet-tooltip.stop-tip {
+  background: var(--card); color: var(--ink); border: 1px solid var(--glass-line); border-radius: 12px; padding: 6px 10px;
+  font: 700 13px/1.35 "PingFang HK", "Noto Sans HK", "Microsoft JhengHei", system-ui, sans-serif; box-shadow: 0 4px 14px rgba(0,0,0,.28);
+  white-space: normal; max-width: 210px; text-align: center;
+}
+.leaflet-tooltip.stop-tip small { display: block; font-size: 12px; font-weight: 700; color: var(--accent); }
+.leaflet-tooltip-top.stop-tip::before { border-top-color: var(--card); }
 
 .search-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; background: var(--card); border-top: 1px solid var(--line); }
 
@@ -197,7 +273,10 @@ h2 { margin: 0; }
 .stop-name { display: block; font-weight: 600; font-size: 15px; }
 .stop-sub { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; }
 .stop-sub:empty { display: none; }
-.star { flex: none; width: 46px; display: grid; place-items: center; color: var(--muted); }
+.star { flex: none; width: 40px; height: 40px; align-self: center; margin-right: 4px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); background: rgba(120,130,150,.10); border: 1px solid var(--glass-edge); box-shadow: inset 0 1px 0 var(--glass-hi); }
+.star:active { background: var(--glass-tint); }
+.star[data-act="alert-stop"][aria-pressed="true"] { color: var(--accent); background: var(--glass-tint); }
+.star[data-act="alert-stop"][aria-pressed="true"] .ic { fill: currentColor; }
 .star[aria-pressed="true"] { color: var(--amber); }
 .star[aria-pressed="true"] .ic { fill: currentColor; }
 
@@ -211,16 +290,48 @@ h2 { margin: 0; }
 .fav-row .card { border-bottom: 0; }
 
 /* ---------- 虛擬鍵盤 ---------- */
-.kb { flex: none; display: none; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; background: var(--soft); border-top: 1px solid var(--line); }
+.kb { flex: none; display: none; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; background: transparent; border-top: 1px solid var(--glass-edge); }
 .kb.open { display: grid; }
 .kb-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; align-content: start; }
 .key {
-  height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 8px;
-  background: var(--key); border: 1px solid var(--key-line); font: 700 21px var(--num); letter-spacing: .03em; text-align: center;
+  height: 42px; display: flex; align-items: center; justify-content: center; border-radius: 12px;
+  background: var(--glass); border: 1px solid var(--glass-line); box-shadow: var(--glass-shadow), inset 0 1px 0 var(--glass-hi);
+  font: 700 21px var(--num); letter-spacing: .03em; text-align: center;
 }
-.key:active { background: var(--line); }
+.key:active { background: var(--glass-tint); }
 .key:disabled { opacity: .25; cursor: default; }
 .key.util { color: var(--muted); font: 600 13px "PingFang HK", "Noto Sans HK", "Microsoft JhengHei", system-ui, sans-serif; }
+
+/* ---------- 訊息與設定 ---------- */
+.msg { display: flex; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.msg:last-child { border-bottom: 0; }
+.msg.unread { background: var(--sel); }
+.msg-ic { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--glass-tint); color: var(--accent); }
+.msg-tx { min-width: 0; }
+.msg-tx b { display: block; font-size: 14.5px; }
+.msg-tx p { white-space: pre-line; margin: 2px 0 3px; font-size: 13px; line-height: 1.5; }
+.msg-tx small { font-size: 11.5px; color: var(--muted); }
+.head-row { display: flex; align-items: center; justify-content: space-between; padding-right: 12px; }
+.head-row .acts { display: flex; gap: 6px; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.set-row:last-child { border-bottom: 0; }
+.set-row b { display: block; font-size: 14.5px; }
+.set-row small { display: block; margin-top: 1px; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.seg { display: flex; gap: 4px; flex: none; }
+.seg .pill { padding: 5px 10px; }
+.switch {
+  flex: none; position: relative; width: 50px; height: 30px; border-radius: 15px; background: rgba(120,130,150,.32);
+  border: 1px solid var(--glass-line); box-shadow: inset 0 1px 3px rgba(0,0,0,.2); transition: background .2s;
+}
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); transition: transform .2s; }
+.switch[aria-checked="true"] { background: var(--red); }
+.switch[aria-checked="true"]::after { transform: translateX(20px); }
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; }
+.stat-grid div { padding: 12px 4px; }
+.stat-grid b { display: block; font: 700 26px/1.1 var(--num); }
+.stat-grid small { font-size: 11.5px; color: var(--muted); }
+.disclaimer { margin: 0; padding: 8px 16px 14px; font-size: 11.5px; line-height: 1.6; color: var(--muted); }
+.danger { color: var(--accent); font-weight: 700; }
 
 /* ---------- 載入 / 提示 ---------- */
 .boot { position: absolute; inset: 0; z-index: 50; background: var(--bg); display: grid; place-content: center; justify-items: center; gap: 14px; padding: 24px; text-align: center; color: var(--muted); }
@@ -253,12 +364,18 @@ h2 { margin: 0; }
   <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></symbol>
   <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
   <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 1112 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 003.4 0"/></symbol>
+  <symbol id="i-msg" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></symbol>
+  <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h6a3.5 3.5 0 000-7h-4a3.5 3.5 0 010-7h6"/></symbol>
   <symbol id="i-share" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></symbol>
 </svg>
 
 <div class="app" id="app">
   <header class="top">
-    <div class="brand">九巴報站<span class="lite">Lite</span><span class="lite beta">Beta 0.9</span></div>
+    <div class="brand">九巴報站<span class="lite">Lite</span><span class="lite beta">Beta 1.0</span></div>
     <div class="top-r">
       <time id="clock">--:--</time>
       <button type="button" class="icon-btn" id="themeBtn" data-act="theme" aria-label="切換深色或淺色模式"><svg class="ic"><use href="#i-moon"/></svg></button>
@@ -269,10 +386,12 @@ h2 { margin: 0; }
     <!-- 首頁 -->
     <section id="view-home" class="view active" aria-label="首頁">
       <button type="button" class="fake-field" data-act="goto-search"><svg class="ic"><use href="#i-search"/></svg>輸入路線號碼，例如 1A、273A</button>
+      <div id="homeFav"></div>
       <div id="homeRecent"></div>
+      <div id="homeFreq"></div>
       <h2 class="sec">熱門路線</h2>
       <div id="homePopular" class="list"></div>
-      <p class="credit">班次資料來自九巴開放數據（DATA.GOV.HK），預測到站時間只供參考，請以車站及巴士公司公佈為準。本網頁並非九巴官方服務。<br>版本：Beta 0.9</p>
+      <p class="credit">班次資料來自九巴開放數據（DATA.GOV.HK），預測到站時間只供參考，請以車站及巴士公司公佈為準。本網頁並非九巴官方服務。<br>版本：Beta 1.0</p>
     </section>
 
     <!-- 搜尋 -->
@@ -294,7 +413,18 @@ h2 { margin: 0; }
         <button type="button" class="pill" data-act="refresh" aria-label="重新整理"><svg class="ic"><use href="#i-refresh"/></svg></button>
         <span class="updated" id="updated"></span>
       </div>
-      <div class="map-wrap" id="mapWrap"><div id="map"></div></div>
+      <div class="map-wrap" id="mapWrap">
+        <div id="map"></div>
+        <div class="map-ctl">
+          <button type="button" data-act="map-big" id="mapBigBtn" aria-label="放大或縮小地圖區域"><svg class="ic"><use href="#i-expand"/></svg></button>
+          <button type="button" data-act="map-fit" aria-label="顯示全線"><svg class="ic"><use href="#i-fit"/></svg></button>
+          <button type="button" data-act="map-locate" aria-label="我的位置"><svg class="ic"><use href="#i-locate"/></svg></button>
+          <span class="sep"></span>
+          <button type="button" data-act="map-zin" aria-label="拉近"><svg class="ic"><use href="#i-plus"/></svg></button>
+          <button type="button" data-act="map-zout" aria-label="拉遠"><svg class="ic"><use href="#i-minus"/></svg></button>
+        </div>
+        <div class="map-legend" aria-hidden="true"><span><i style="background:#16a34a"></i>起點</span><span><i style="background:#15181d"></i>終點</span><span><i style="background:#d7000f"></i>已選站</span></div>
+      </div>
       <div class="search-scroll">
         <div id="status" class="status"></div>
         <div id="cands" class="list" hidden></div>
@@ -316,6 +446,24 @@ h2 { margin: 0; }
       <div id="favBody"></div>
     </section>
 
+    <!-- 訊息與設定 -->
+    <section id="view-msg" class="view" aria-label="訊息與設定">
+      <div class="head-row">
+        <h2 class="sec">訊息</h2>
+        <div class="acts">
+          <button type="button" class="pill" data-act="msg-read">全部已讀</button>
+          <button type="button" class="pill" data-act="msg-clear">清空</button>
+        </div>
+      </div>
+      <div id="msgBody" class="list"></div>
+      <p class="disclaimer">訊息由本機比對九巴開放數據的前後差異得出，並非官方公告。改線、站位轉移及特別交通消息，請以九巴及運輸署公佈為準。</p>
+      <h2 class="sec">設定</h2>
+      <div id="setBody" class="list"></div>
+      <h2 class="sec">你的使用數據（只存在這部裝置）</h2>
+      <div id="statBody" class="list"></div>
+      <p class="credit"></p>
+    </section>
+
     <div id="boot" class="boot" role="status"><div class="spin"></div><div id="bootMsg">載入路線資料…</div></div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </main>
@@ -330,6 +478,7 @@ h2 { margin: 0; }
     <button type="button" data-act="tab" data-tab="search"><svg class="ic"><use href="#i-search"/></svg>搜尋</button>
     <button type="button" data-act="tab" data-tab="nearby"><svg class="ic"><use href="#i-pin"/></svg>附近</button>
     <button type="button" data-act="tab" data-tab="fav"><svg class="ic"><use href="#i-star"/></svg>收藏</button>
+    <button type="button" data-act="tab" data-tab="msg"><svg class="ic"><use href="#i-msg"/></svg>訊息<span class="badge" id="msgBadge" hidden>0</span></button>
   </nav>
 </div>
 
@@ -342,12 +491,12 @@ const API = 'https://data.etabus.gov.hk/v1/transport/kmb';
 const REFRESH_MS = 30000;
 const TICK_MS = 10000;
 const NEAR_M = 500;
-const ALERT_MIN = 3;      // 到站提醒：剩 3 分鐘內通知
+const SNAP_MAX = 30;      // 最多監察的路線方向數目（比對改線及站位轉移）
 const WALK_M_PER_MIN = 75; // 步行速度約 75 米/分鐘
 const POPULAR = ['1A', '273A', '270B', '78B', '276B', '960'];
 const RED = '#d7000f';
 const TILES = {
-  light: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+  light: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
   dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
 };
 
@@ -387,10 +536,13 @@ const S = {
   theme: store.get('kmb_theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   mapOn: store.get('kmb_map', true),
   tRefresh: null, tTick: null, searchTimer: null,
-  markers: new Map(), needFit: false, pos: null, alerts: new Map()
+  markers: new Map(), needFit: false, pos: null, alerts: new Map(), tAlert: null, mapBig: false,
+  cfg: Object.assign({ alertMin: 3, wake: false, collect: true }, store.get('kmb_cfg', {})),
+  stats: Object.assign({ total: 0, routes: {} }, store.get('kmb_stats', {})),
+  msgs: [].concat(store.get('kmb_msgs', [])).filter(m => m && m.title)
 };
 
-let map = null, layer = null, tileLayer = null;
+let map = null, layer = null, userLayer = null, tileLayer = null;
 const view = $('#view-search');
 const input = $('#routeInput');
 const kb = $('#kb');
@@ -452,11 +604,20 @@ function etaView(list) {
     const rmk = (list || []).find(e => e.rmk);
     return { num: '--', unit: '', off: true, sub: rmk ? rmk.rmk : '暫無班次' };
   }
-  const fmt = m => (m === 0 ? '<1' : String(m));
+  const later = live.slice(1).map(e => (e.m === 0 ? '即將' : String(e.m)));
   const parts = [];
   if (live[0].rmk) parts.push(live[0].rmk);
-  if (live.length > 1) parts.push(`之後 ${live.slice(1).map(e => fmt(e.m)).join('、')} 分鐘`);
-  return { num: fmt(live[0].m), unit: '分鐘', off: false, sub: parts.join('，'), first: live[0].m };
+  if (later.length) parts.push(`之後 ${later.join('、')}${later.some(x => x !== '即將') ? ' 分鐘' : ''}`);
+  const soon = live[0].m === 0;
+  return { num: soon ? '即將到達' : String(live[0].m), unit: soon ? '' : '分鐘', off: false, soon, sub: parts.join('，'), first: live[0].m };
+}
+
+// 更新到站時間顯示：統一處理「即將到達」「暫無班次」等狀態
+function setLed(led, v) {
+  led.classList.toggle('off', !!v.off);
+  led.classList.toggle('soon', !!v.soon);
+  $('[data-num]', led).textContent = v.num;
+  $('[data-unit]', led).textContent = v.unit;
 }
 
 /* ========== 收藏 / 最近查看 ========== */
@@ -475,6 +636,13 @@ function toggleFav(f) {
 function addRecent(route) {
   S.recent = [route, ...S.recent.filter(r => r !== route)].slice(0, 8);
   store.set('kmb_recent', S.recent);
+  if (S.cfg.collect) {
+    const e = S.stats.routes[route] || { n: 0 };
+    e.n++; e.last = Date.now();
+    S.stats.routes[route] = e;
+    S.stats.total++;
+    store.set('kmb_stats', S.stats);
+  }
 }
 
 /* ========== 共用畫面 ========== */
@@ -515,7 +683,16 @@ function renderHome() {
   $('#homeRecent').innerHTML = rec.length
     ? `<h2 class="sec">最近查看</h2><div class="chips">${rec.map(r => `<button type="button" class="chip" data-act="go-route" data-route="${esc(r)}">${esc(r)}</button>`).join('')}</div>`
     : '';
+  const freq = S.cfg.collect
+    ? Object.entries(S.stats.routes).filter(([r, e]) => e.n >= 2 && S.routeMap.has(r)).sort((a, b) => b[1].n - a[1].n).slice(0, 5)
+    : [];
+  $('#homeFreq').innerHTML = freq.length
+    ? `<h2 class="sec">常用路線</h2><div class="chips">${freq.map(([r, e]) => `<button type="button" class="chip" data-act="go-route" data-route="${esc(r)}">${esc(r)}<i>${e.n} 次</i></button>`).join('')}</div>`
+    : '';
+  const fs = S.favs.filter(f => f.t === 's');
+  $('#homeFav').innerHTML = fs.length ? `<h2 class="sec">收藏站牌 · 即時</h2><div class="list">${fs.map(favStopRow).join('')}</div>` : '';
   $('#homePopular').innerHTML = POPULAR.map(n => S.routeMap.get(n)).filter(Boolean).map(m => routeCard(m.O || m.I)).join('');
+  if (fs.length && S.ready) { paintFavEtas(); refreshFavs(); }
 }
 
 /* ========== 虛擬鍵盤與輸入 ========== */
@@ -660,7 +837,6 @@ function goRoute(route, bound, opt = {}) {
 async function loadRoute(r, { seq = null, silent = false } = {}) {
   const id = silent ? S.reqId : ++S.reqId; // 背景更新不會作廢載入中的請求
   const st = $('#status');
-  const key = `${r.route}|${r.bound}|${r.service_type}`;
 
   if (!silent) {
     S.cur = r; S.selSeq = seq; S.curStops = []; S.etaBySeq = {};
@@ -671,19 +847,13 @@ async function loadRoute(r, { seq = null, silent = false } = {}) {
   }
 
   try {
-    const stopsP = S.stopCache.has(key)
-      ? Promise.resolve(S.stopCache.get(key))
-      : fetchJSON(`${API}/route-stop/${r.route}/${r.bound === 'O' ? 'outbound' : 'inbound'}/${r.service_type}`).then(j => {
-          const arr = j.data.map(x => ({ seq: Number(x.seq), id: x.stop, info: S.stops[x.stop] || null })).sort((a, b) => a.seq - b.seq);
-          S.stopCache.set(key, arr);
-          return arr;
-        });
-    const [stops, eta] = await Promise.all([stopsP, fetchJSON(`${API}/route-eta/${r.route}/${r.service_type}`, true)]);
+    const [stops, eta] = await Promise.all([getStops(r), fetchJSON(`${API}/route-eta/${r.route}/${r.service_type}`, true)]);
     if (id !== S.reqId) return;
     const full = !silent || !S.curStops.length;
 
     setOffset(eta);
     S.etaBySeq = groupEta(eta.data || [], r.bound);
+    collectRemarks(r, eta.data || [], stops);
     S.updatedAt = new Date();
     const up = $('#updated');
     up.textContent = `更新於 ${hms(S.updatedAt)}`;
@@ -691,6 +861,7 @@ async function loadRoute(r, { seq = null, silent = false } = {}) {
 
     if (full) {
       S.curStops = stops;
+      trackStops(r, stops);
       st.textContent = '';
       renderStopList();
       drawRoute();
@@ -709,6 +880,16 @@ async function loadRoute(r, { seq = null, silent = false } = {}) {
       st.innerHTML = `載入失敗，請檢查網絡連線<br><button type="button" class="pill" style="margin-top:10px" data-act="retry">重試</button>`;
     }
   }
+}
+
+function getStops(r) {
+  const key = `${r.route}|${r.bound}|${r.service_type}`;
+  if (S.stopCache.has(key)) return Promise.resolve(S.stopCache.get(key));
+  return fetchJSON(`${API}/route-stop/${r.route}/${r.bound === 'O' ? 'outbound' : 'inbound'}/${r.service_type}`).then(j => {
+    const arr = j.data.map(x => ({ seq: Number(x.seq), id: x.stop, info: S.stops[x.stop] || null })).sort((a, b) => a.seq - b.seq);
+    S.stopCache.set(key, arr);
+    return arr;
+  });
 }
 
 function refreshSearch() { if (S.cur) loadRoute(S.cur, { silent: true }); }
@@ -731,12 +912,11 @@ function paintEtas() {
   checkAlerts();
   for (const row of $$('#stopList .stop')) {
     const v = etaView(S.etaBySeq[row.dataset.seq]);
-    $('.led', row).classList.toggle('off', v.off);
-    $('[data-num]', row).textContent = v.num;
-    $('[data-unit]', row).textContent = v.unit;
+    setLed($('.led', row), v);
     const walk = Number(row.dataset.seq) === S.selSeq ? walkNote(S.curStops.find(x => x.seq === S.selSeq), v) : '';
     $('[data-sub]', row).textContent = [v.sub, walk].filter(Boolean).join('，');
   }
+  updateSelTip();
 }
 
 function syncStars() {
@@ -764,17 +944,23 @@ function ensureMap() {
   map = L.map('map', { zoomControl: false, attributionControl: true }).setView([22.3193, 114.1694], 12);
   map.attributionControl.setPrefix(false);
   layer = L.featureGroup().addTo(map);
+  userLayer = L.layerGroup().addTo(map);
   setTiles();
+  map.on('zoomend', syncZoomClass);
+  syncZoomClass();
   if (window.ResizeObserver) {
-    new ResizeObserver(() => { map.invalidateSize(); tryFit(); }).observe($('#mapWrap'));
+    new ResizeObserver(() => { map.invalidateSize(); tryFit(); refreshTip(); }).observe($('#mapWrap'));
   }
   return true;
 }
 
+// 拉遠時把站點縮成小圓點、隱藏方向箭嘴，避免畫面過亂
+function syncZoomClass() { $('#map').classList.toggle('z-low', map.getZoom() < 15); }
+
 function setTiles() {
   if (!map) return;
   if (tileLayer) map.removeLayer(tileLayer);
-  tileLayer = L.tileLayer(TILES[S.theme], { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO' }).addTo(map);
+  tileLayer = L.tileLayer(TILES[S.theme], { maxZoom: 19, subdomains: 'abcd', detectRetina: true, attribution: '© OpenStreetMap © CARTO' }).addTo(map);
 }
 
 const mapShown = () => $('#mapWrap').offsetHeight > 0;
@@ -784,9 +970,16 @@ function tryFit() {
   const pts = S.curStops.filter(s => s.info).map(s => [s.info.lat, s.info.lng]);
   if (!pts.length) return;
   map.invalidateSize();
-  map.fitBounds(pts, { padding: [24, 24] });
+  map.fitBounds(pts, { padding: [36, 36] });
   S.needFit = false;
 }
+
+const bearing = (a, b) => {
+  const r = Math.PI / 180, dl = (b.lng - a.lng) * r;
+  const y = Math.sin(dl) * Math.cos(b.lat * r);
+  const x = Math.cos(a.lat * r) * Math.sin(b.lat * r) - Math.sin(a.lat * r) * Math.cos(b.lat * r) * Math.cos(dl);
+  return (Math.atan2(y, x) / r + 360) % 360;
+};
 
 function drawRoute() {
   if (!ensureMap()) return;
@@ -794,9 +987,27 @@ function drawRoute() {
   S.markers.clear();
   const valid = S.curStops.filter(s => s.info);
   if (!valid.length) return;
-  L.polyline(valid.map(s => [s.info.lat, s.info.lng]), { color: RED, weight: 4, opacity: .8 }).addTo(layer);
+  const pts = valid.map(s => [s.info.lat, s.info.lng]);
+  // 白色外框 + 紅色路線，令路線在任何地圖底色上都清楚
+  L.polyline(pts, { color: '#ffffff', weight: 10, opacity: .95, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(layer);
+  L.polyline(pts, { color: RED, weight: 5, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(layer);
+  // 行車方向箭嘴
+  for (let i = 0; i < valid.length - 1; i++) {
+    const a = valid[i].info, b = valid[i + 1].info;
+    if (dist(a.lat, a.lng, b.lat, b.lng) < 120) continue;
+    L.marker([(a.lat + b.lat) / 2, (a.lng + b.lng) / 2], {
+      icon: L.divIcon({ className: 'arr-wrap', html: `<div class="arr" style="transform:rotate(${bearing(a, b).toFixed(0)}deg)">▲</div>`, iconSize: [16, 16], iconAnchor: [8, 8] }),
+      interactive: false, keyboard: false
+    }).addTo(layer);
+  }
+  const first = valid[0].seq, last = valid[valid.length - 1].seq;
   valid.forEach(s => {
-    const m = L.circleMarker([s.info.lat, s.info.lng], { radius: 5, weight: 2, color: RED, fillColor: '#fff', fillOpacity: 1 });
+    const cls = s.seq === first ? 'first' : s.seq === last ? 'last' : '';
+    const lab = s.seq === first ? '起' : s.seq === last ? '終' : s.seq;
+    const m = L.marker([s.info.lat, s.info.lng], {
+      icon: L.divIcon({ className: 'mk-wrap', html: `<div class="mk ${cls}">${lab}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] }),
+      keyboard: false, riseOnHover: true
+    });
     m.on('click', () => selectStop(s.seq, { scroll: true }));
     m.addTo(layer);
     S.markers.set(s.seq, m);
@@ -804,20 +1015,64 @@ function drawRoute() {
   S.needFit = true;
   tryFit();
   styleMarkers();
+  drawUser();
+}
+
+function selTipHtml(seq) {
+  const s = S.curStops.find(x => x.seq === seq);
+  if (!s) return '';
+  const v = etaView(S.etaBySeq[seq]);
+  const t = v.off ? v.sub : (v.soon ? '即將到達' : `${v.num} 分鐘`);
+  return `${esc(s.info ? s.info.name : '車站')}<small>${esc(t)}</small>`;
 }
 
 function styleMarkers() {
-  const first = S.curStops[0] && S.curStops[0].seq;
-  const last = S.curStops.length && S.curStops[S.curStops.length - 1].seq;
   S.markers.forEach((m, seq) => {
     const sel = seq === S.selSeq;
-    m.setStyle({
-      radius: sel ? 9 : (seq === first || seq === last ? 7 : 5),
-      fillColor: sel ? RED : '#fff',
-      weight: sel ? 3 : 2
-    });
-    if (sel) m.bringToFront();
+    const el = m.getElement();
+    if (el) el.classList.toggle('sel', sel);
+    m.setZIndexOffset(sel ? 2000 : 0);
+    if (sel) m.bindTooltip(selTipHtml(seq), { permanent: true, direction: 'top', offset: [0, -18], className: 'stop-tip' }).openTooltip();
+    else if (m.getTooltip()) m.unbindTooltip();
   });
+}
+
+function updateSelTip() {
+  const m = S.selSeq != null && S.markers.get(S.selSeq);
+  if (m && m.getTooltip()) m.setTooltipContent(selTipHtml(S.selSeq));
+}
+
+function refreshTip() {
+  const m = S.selSeq != null && S.markers.get(S.selSeq);
+  if (m && m.getTooltip() && mapShown()) { m.closeTooltip(); m.openTooltip(); }
+}
+
+function drawUser() {
+  if (!map || !userLayer || !S.pos) return;
+  userLayer.clearLayers();
+  L.marker([S.pos.lat, S.pos.lng], {
+    icon: L.divIcon({ className: 'me-wrap', html: '<div class="me"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }),
+    interactive: false, keyboard: false, zIndexOffset: 500
+  }).addTo(userLayer);
+}
+
+function toggleMapBig() {
+  S.mapBig = !S.mapBig;
+  $('#mapWrap').classList.toggle('big', S.mapBig);
+  $('#mapBigBtn').innerHTML = ic(S.mapBig ? 'shrink' : 'expand');
+  setTimeout(() => { if (map) { map.invalidateSize(); refreshTip(); } }, 280);
+}
+
+async function locateMe() {
+  if (!ensureMap()) return;
+  try {
+    const { coords } = await getPos();
+    S.pos = { lat: coords.latitude, lng: coords.longitude };
+    drawUser();
+    map.setView([S.pos.lat, S.pos.lng], Math.max(map.getZoom(), 16), { animate: !reduceMotion });
+    paintEtas();
+    toast('已顯示你的位置');
+  } catch (e) { toast(geoMsg(e)); }
 }
 
 function setMapOn(on) {
@@ -872,6 +1127,7 @@ async function nearestOnRoute() {
   try {
     const { coords } = await getPos();
     S.pos = { lat: coords.latitude, lng: coords.longitude };
+    drawUser();
     let best = null;
     for (const s of S.curStops) {
       if (!s.info) continue;
@@ -981,7 +1237,7 @@ function paintNb() {
         return `<button type="button" class="card" data-act="go-route" data-route="${esc(r.route)}" data-bound="${esc(r.dir)}" data-st="${esc(r.st)}" data-seq="${r.seq}">
           <span class="plate sm">${esc(r.route)}</span>
           <span class="card-text"><b>往 ${esc(r.dest)}</b><small>${esc(v.sub)}</small></span>
-          <span class="led sm ${v.off ? 'off' : ''}"><b>${esc(v.num)}</b><small>${esc(v.unit)}</small></span>
+          <span class="led sm ${v.off ? 'off' : ''} ${v.soon ? 'soon' : ''}"><b>${esc(v.num)}</b><small>${esc(v.unit)}</small></span>
         </button>`;
       }).join('')
     : '<p class="status">此站暫時沒有班次資料</p>';
@@ -998,12 +1254,30 @@ function toggleAlert(seq) {
   if (S.alerts.has(k)) { S.alerts.delete(k); toast('已取消到站提醒'); }
   else {
     const s = S.curStops.find(x => x.seq === seq);
-    S.alerts.set(k, { route: S.cur.route, name: s && s.info ? s.info.name : '此站', seq, fired: false });
+    if (!s) return;
+    S.alerts.set(k, { route: S.cur.route, bound: S.cur.bound, st: S.cur.service_type, stop: s.id, name: s.info ? s.info.name : '此站', seq, fired: false });
     if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
-    toast(`已設定：${S.cur.route} 剩 ${ALERT_MIN} 分鐘內提醒你（需停留在此路線頁）`);
+    toast(`已設定：${S.cur.route} 剩 ${S.cfg.alertMin} 分鐘內提醒你（切換分頁也會提醒，請保持網頁開啟）`);
     checkAlerts();
   }
   syncBells();
+  syncAlertTimer();
+}
+
+// 有提醒時在背景定時查詢，切換到其他分頁也會通知
+function syncAlertTimer() {
+  clearInterval(S.tAlert); S.tAlert = null;
+  if (S.alerts.size) S.tAlert = setInterval(pollAlerts, REFRESH_MS);
+}
+
+async function pollAlerts() {
+  for (const a of [...S.alerts.values()]) {
+    try {
+      const j = await fetchJSON(`${API}/eta/${a.stop}/${a.route}/${a.st}`, true);
+      setOffset(j);
+      fireIfDue(a, groupEta(j.data || [], a.bound)[a.seq] || []);
+    } catch { /* 下次再試 */ }
+  }
 }
 
 function syncBells() {
@@ -1013,19 +1287,24 @@ function syncBells() {
   }
 }
 
+function fireIfDue(a, list) {
+  const first = list.map(e => e.ts ? minsOf(e.ts) : null).find(m => m !== null);
+  if (first === undefined) return;
+  if (first <= S.cfg.alertMin && !a.fired) {
+    a.fired = true;
+    const msg = first === 0 ? `${a.route} 即將到達「${a.name}」` : `${a.route} 約 ${first} 分鐘後到達「${a.name}」`;
+    toast(msg);
+    pushMsg('alert', '到站提醒', msg);
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    if ('Notification' in window && Notification.permission === 'granted') { try { new Notification('九巴報站', { body: msg }); } catch { /* 略過 */ } }
+  } else if (first > S.cfg.alertMin + 2) a.fired = false; // 班次駛過後重新啟用
+}
+
 function checkAlerts() {
   if (!S.cur) return;
   for (const [k, a] of S.alerts) {
     if (!k.startsWith(`${S.cur.route}|${S.cur.bound}|${S.cur.service_type}|`)) continue;
-    const first = (S.etaBySeq[a.seq] || []).map(e => e.ts ? minsOf(e.ts) : null).find(m => m !== null);
-    if (first === undefined) continue;
-    if (first <= ALERT_MIN && !a.fired) {
-      a.fired = true;
-      const msg = `${a.route} 即將到達「${a.name}」（${first === 0 ? '<1' : first} 分鐘）`;
-      toast(msg);
-      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
-      if ('Notification' in window && Notification.permission === 'granted') { try { new Notification('九巴報站', { body: msg }); } catch { /* 略過 */ } }
-    } else if (first > ALERT_MIN + 2) a.fired = false; // 班次駛過後重新啟用
+    fireIfDue(a, S.etaBySeq[a.seq] || []);
   }
 }
 
@@ -1047,6 +1326,184 @@ async function shareEta() {
     if (navigator.share) await navigator.share({ text });
     else { await navigator.clipboard.writeText(text); toast('已複製班次資訊'); }
   } catch (e) { if (!e || e.name !== 'AbortError') toast('無法分享，請手動複製'); }
+}
+
+/* ========== 訊息中心 ========== */
+const MSG_ICON = { route: 'map', stop: 'pin', note: 'msg', alert: 'bell' };
+
+function pushMsg(type, title, body, key) {
+  if (key && S.msgs.some(m => m.k === key)) return;
+  S.msgs.unshift({ ts: Date.now(), type, title, body, k: key || null, read: false });
+  S.msgs = S.msgs.slice(0, 60);
+  store.set('kmb_msgs', S.msgs);
+  updateBadge();
+  if (S.tab === 'msg') renderMsgs();
+}
+
+function updateBadge() {
+  const n = S.msgs.filter(m => !m.read).length;
+  const b = $('#msgBadge');
+  b.hidden = !n;
+  b.textContent = n > 9 ? '9+' : String(n);
+}
+
+function markRead() {
+  S.msgs.forEach(m => { m.read = true; });
+  store.set('kmb_msgs', S.msgs);
+  updateBadge();
+}
+
+function ago(ts) {
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 1) return '剛剛';
+  if (m < 60) return `${m} 分鐘前`;
+  if (m < 1440) return `${Math.floor(m / 60)} 小時前`;
+  const d = new Date(ts);
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function renderMsgs() {
+  $('#msgBody').innerHTML = S.msgs.length
+    ? S.msgs.map(m => `<div class="msg ${m.read ? '' : 'unread'}"><span class="msg-ic">${ic(MSG_ICON[m.type] || 'msg')}</span>
+        <div class="msg-tx"><b>${esc(m.title)}</b><p>${esc(m.body)}</p><small>${esc(ago(m.ts))}</small></div></div>`).join('')
+    : '<div class="status">暫時沒有訊息。<br>你收藏或查看過的路線，如有終點站改動、<br>站位轉移或特別班次備註，會顯示在這裡。</div>';
+  renderSettings();
+  renderStats();
+}
+
+const sw = (act, on, label) => `<button type="button" class="switch" role="switch" data-act="${act}" aria-checked="${on}" aria-label="${label}"></button>`;
+
+function renderSettings() {
+  const c = S.cfg;
+  $('#setBody').innerHTML = `
+    <div class="set-row"><div><b>到站提醒時間</b><small>巴士剩餘幾多分鐘內通知你</small></div>
+      <div class="seg">${[2, 3, 5, 10].map(n => `<button type="button" class="pill" data-act="cfg-alert" data-v="${n}" aria-pressed="${c.alertMin === n}">${n} 分</button>`).join('')}</div></div>
+    <div class="set-row"><div><b>螢幕常亮</b><small>查看班次時不會自動熄屏，較耗電</small></div>${sw('cfg-wake', c.wake, '螢幕常亮')}</div>
+    <div class="set-row"><div><b>收集使用資料</b><small>記錄常查路線，並比對路線及站位有否變更。資料只存在這部裝置，不會上傳</small></div>${sw('cfg-collect', c.collect, '收集使用資料')}</div>
+    <div class="set-row"><div><b class="danger">清除全部本機資料</b><small>收藏、最近查看、訊息及統計都會刪除</small></div>
+      <button type="button" class="pill" data-act="wipe">清除</button></div>`;
+}
+
+function renderStats() {
+  const ent = Object.entries(S.stats.routes);
+  const top = ent.sort((a, b) => b[1].n - a[1].n).slice(0, 5);
+  const watching = Object.keys(store.get('kmb_snap', {})).length;
+  $('#statBody').innerHTML = `<div class="stat-grid">
+      <div><b>${S.stats.total}</b><small>查看路線次數</small></div>
+      <div><b>${ent.length}</b><small>查看過的路線</small></div>
+      <div><b>${watching}</b><small>監察中的方向</small></div></div>` +
+    (top.length ? `<div class="chips">${top.map(([r, e]) => `<button type="button" class="chip" data-act="go-route" data-route="${esc(r)}">${esc(r)}<i>${e.n} 次</i></button>`).join('')}</div>` : '');
+}
+
+const saveCfg = () => store.set('kmb_cfg', S.cfg);
+
+let wakeLock = null;
+async function setWake() {
+  try {
+    if (S.cfg.wake && !document.hidden) {
+      if (!('wakeLock' in navigator)) { toast('此瀏覽器不支援螢幕常亮'); return; }
+      if (!wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+    } else if (wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch { wakeLock = null; }
+}
+
+/* ========== 變更偵測：改線 / 站位轉移 / 班次備註 ========== */
+// 九巴開放數據沒有「公告」介面，所以每次開啟時比對收藏及最近查看路線的資料，與上次記錄有差異就發訊息。
+const r4 = n => Math.round(n * 1e4) / 1e4;
+const watchList = () => [...new Set([...S.favs.map(f => f.route), ...S.recent])].slice(0, 8);
+
+function trackStops(r, stops) {
+  if (!S.cfg.collect || !stops || !stops.length) return;
+  const snap = store.get('kmb_snap', {});
+  const key = `${r.route}|${r.bound}|${r.service_type}`;
+  const now = stops.map(s => [s.id, s.info ? s.info.name : '', s.info ? r4(s.info.lat) : 0, s.info ? r4(s.info.lng) : 0]);
+  if (snap[key]) diffStops(r, snap[key].s, now);
+  snap[key] = { t: Date.now(), s: now };
+  const keys = Object.keys(snap);
+  if (keys.length > SNAP_MAX) keys.sort((a, b) => snap[a].t - snap[b].t).slice(0, keys.length - SNAP_MAX).forEach(k => { delete snap[k]; });
+  store.set('kmb_snap', snap);
+}
+
+function diffStops(r, oldS, newS) {
+  const oldM = new Map(oldS.map(x => [x[0], x]));
+  const newM = new Map(newS.map(x => [x[0], x]));
+  const items = [];
+  for (const [id, n] of newM) {
+    const o = oldM.get(id);
+    if (!o) continue;
+    if (o[1] !== n[1]) items.push(`「${o[1]}」改名為「${n[1]}」`);
+    else if (o[2] && n[2]) {
+      const d = dist(o[2], o[3], n[2], n[3]);
+      if (d > 40) items.push(`「${n[1]}」站位移動約 ${Math.round(d)} 米`);
+    }
+  }
+  const gone = oldS.filter(x => !newM.has(x[0]));
+  const added = newS.filter(x => !oldM.has(x[0]));
+  const used = new Set();
+  for (const g of gone) {
+    let best = null;
+    for (const a of added) {
+      if (used.has(a[0]) || !g[2] || !a[2]) continue;
+      const d = dist(g[2], g[3], a[2], a[3]);
+      if (d <= 400 && (!best || d < best.d)) best = { a, d };
+    }
+    if (best) { used.add(best.a[0]); items.push(`站位轉移：「${g[1]}」→「${best.a[1]}」（相距約 ${Math.round(best.d)} 米）`); }
+    else items.push(`取消停靠：「${g[1]}」`);
+  }
+  for (const a of added) if (!used.has(a[0])) items.push(`新增停靠：「${a[1]}」`);
+  if (!items.length) return;
+  const body = items.slice(0, 5).join('；') + (items.length > 5 ? `…等共 ${items.length} 項` : '');
+  pushMsg('stop', `${r.route} 往 ${r.dest_tc}：站點有變`, body, `stop|${r.route}|${r.bound}|${items.join('|')}`.slice(0, 240));
+}
+
+const prettySig = sig => sig.split(';').filter(x => !x.endsWith(':-')).map(x => {
+  const [, rest] = x.split(/:(.+)/);
+  const [o, d] = rest.split('>');
+  return `${o} → ${d}`;
+}).join('；');
+
+function trackRoutes() {
+  const snap = store.get('kmb_snap_r', {});
+  for (const rt of watchList()) {
+    const m = S.routeMap.get(rt);
+    const sig = m ? ['O', 'I'].map(b => (m[b] ? `${b}:${m[b].orig_tc}>${m[b].dest_tc}` : `${b}:-`)).join(';') : 'gone';
+    const old = snap[rt];
+    if (old && old !== sig) {
+      if (sig === 'gone') pushMsg('route', `路線 ${rt} 已不在班次資料中`, '可能已取消或暫停服務，請向九巴查詢。', `route|${rt}|gone`);
+      else if (old === 'gone') pushMsg('route', `路線 ${rt} 重新出現在班次資料中`, prettySig(sig), `route|${rt}|${sig}`);
+      else pushMsg('route', `路線 ${rt} 起訖點有更新`, `原本：${prettySig(old)}\n現在：${prettySig(sig)}`, `route|${rt}|${sig}`);
+    }
+    snap[rt] = sig;
+  }
+  store.set('kmb_snap_r', snap);
+}
+
+async function checkWatched() {
+  if (!S.cfg.collect || !S.ready) return;
+  trackRoutes();
+  for (const rt of watchList().slice(0, 6)) {
+    const m = S.routeMap.get(rt);
+    if (!m) continue;
+    for (const b of ['O', 'I']) {
+      if (!m[b]) continue;
+      try { trackStops(m[b], await getStops(m[b])); } catch { /* 網絡問題，下次再比對 */ }
+    }
+  }
+}
+
+// 收集九巴在班次上的特別備註（例如尾班車、特別班次），每日每條路線同一備註只記一次
+const NOISE = /^(原定班次|預定班次|預定|原定)$/;
+function collectRemarks(r, items, stops) {
+  if (!S.cfg.collect) return;
+  const day = new Date().toDateString();
+  const seen = new Set();
+  for (const it of items) {
+    const t = (it.rmk_tc || '').trim();
+    if (!t || NOISE.test(t) || it.dir !== r.bound || seen.has(t)) continue;
+    seen.add(t);
+    const s = stops.find(x => x.seq === Number(it.seq));
+    pushMsg('note', `${r.route} 往 ${r.dest_tc}：${t}`, `九巴班次備註「${t}」${s && s.info ? `（例如 ${s.info.name} 一帶）` : ''}`, `note|${day}|${r.route}|${r.bound}|${t}`);
+  }
 }
 
 /* ========== 收藏頁 ========== */
@@ -1090,12 +1547,10 @@ function favStopRow(f) {
 }
 
 function paintFavEtas() {
-  for (const row of $$('#favBody .fav-row[data-dest]')) {
+  for (const row of $$('#favBody .fav-row[data-dest], #homeFav .fav-row[data-dest]')) {
     const list = S.favEta[row.dataset.key];
     const v = list ? etaView(list) : { num: '--', unit: '', off: true, sub: '' };
-    $('.led', row).classList.toggle('off', v.off);
-    $('[data-num]', row).textContent = v.num;
-    $('[data-unit]', row).textContent = v.unit;
+    setLed($('.led', row), v);
     $('[data-sub]', row).textContent = ['往 ' + row.dataset.dest, v.sub].filter(Boolean).join('，');
   }
 }
@@ -1105,7 +1560,7 @@ async function refreshFavs() {
   if (!stops.length) return;
   const id = ++S.favReq;
   const res = await Promise.allSettled(stops.map(f => fetchJSON(`${API}/eta/${f.stop}/${f.route}/${f.service_type}`, true)));
-  if (id !== S.favReq || S.tab !== 'fav') return;
+  if (id !== S.favReq || (S.tab !== 'fav' && S.tab !== 'home')) return;
   res.forEach((r, i) => {
     if (r.status !== 'fulfilled') return;
     setOffset(r.value);
@@ -1124,6 +1579,7 @@ function switchTab(tab, { quiet = false } = {}) {
   if (tab === 'home') renderHome();
   else if (tab === 'fav') renderFavs();
   else if (tab === 'nearby') renderNearby();
+  else if (tab === 'msg') { renderMsgs(); markRead(); }
   else if (tab === 'search' && !quiet) {
     if (!input.value) { showIdle(); showKeyboard(); }
     else if (S.cur) { syncStars(); syncRouteStar(); refreshSearch(); }
@@ -1136,6 +1592,7 @@ function syncTimers() {
   S.tRefresh = S.tTick = null;
   const cfg = {
     search: S.cur && [refreshSearch, paintEtas],
+    home: S.ready && S.favs.some(f => f.t === 's') && [refreshFavs, paintFavEtas],
     fav: [refreshFavs, paintFavEtas],
     nearby: S.nbOpen && [refreshNearby, paintNb]
   }[S.tab];
@@ -1185,7 +1642,7 @@ document.addEventListener('click', e => {
     case 'unfav': {
       const f = S.favs.find(x => favKey(x) === d.key || (x.t === 'r' && favKey(x) === d.key));
       if (f) { S.favs.splice(S.favs.indexOf(f), 1); store.set('kmb_favorites', S.favs); }
-      renderFavs();
+      if (S.tab === 'home') { renderHome(); syncTimers(); } else renderFavs();
       break;
     }
     case 'toggle-map': setMapOn(!S.mapOn); break;
@@ -1202,6 +1659,25 @@ document.addEventListener('click', e => {
     case 'hide-kb': hideKeyboard(); break;
     case 'theme': applyTheme(S.theme === 'dark' ? 'light' : 'dark'); break;
     case 'reboot': boot(); break;
+    case 'map-big': toggleMapBig(); break;
+    case 'map-fit': S.needFit = true; tryFit(); break;
+    case 'map-locate': locateMe(); break;
+    case 'map-zin': if (map) map.zoomIn(); break;
+    case 'map-zout': if (map) map.zoomOut(); break;
+    case 'msg-read': markRead(); renderMsgs(); break;
+    case 'msg-clear': S.msgs = []; store.set('kmb_msgs', S.msgs); updateBadge(); renderMsgs(); break;
+    case 'cfg-alert': S.cfg.alertMin = Number(d.v); saveCfg(); renderSettings(); toast(`剩 ${S.cfg.alertMin} 分鐘內提醒你`); break;
+    case 'cfg-wake': S.cfg.wake = !S.cfg.wake; saveCfg(); setWake(); renderSettings(); break;
+    case 'cfg-collect':
+      S.cfg.collect = !S.cfg.collect; saveCfg(); renderSettings();
+      toast(S.cfg.collect ? '已開啟資料收集' : '已停止收集，現有統計仍保留');
+      break;
+    case 'wipe':
+      if (confirm('確定清除這部裝置上的全部收藏、記錄、訊息及統計？')) {
+        try { Object.keys(localStorage).filter(k => k.startsWith('kmb_')).forEach(k => localStorage.removeItem(k)); } catch { /* 略過 */ }
+        location.reload();
+      }
+      break;
   }
 });
 
@@ -1215,6 +1691,13 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'Escape') hideKeyboard();
   else if (/^[a-z0-9]$/i.test(e.key)) { typeKey(e.key.toUpperCase()); if (e.target === document.body || e.target === input) e.preventDefault(); }
 });
+
+/* ========== 鎖定縮放（地圖內仍可用手指或 +/- 按鈕縮放） ========== */
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+document.addEventListener('touchmove', e => { if (e.touches.length > 1 && !e.target.closest('#map')) e.preventDefault(); }, { passive: false });
+document.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && ['+', '-', '=', '_', '0'].includes(e.key)) e.preventDefault(); });
+document.addEventListener('visibilitychange', () => { if (S.cfg.wake) setWake(); });
 
 /* ========== 啟動 ========== */
 async function boot() {
@@ -1233,6 +1716,8 @@ async function boot() {
     renderHome();
     if (S.tab === 'fav') renderFavs(); else if (S.tab === 'nearby') renderNearby();
     bootEl.hidden = true;
+    setWake();
+    setTimeout(checkWatched, 1500);
   } catch (err) {
     console.error('載入 API 失敗:', err);
     bootEl.innerHTML = '<div>無法載入路線資料<br>請檢查網絡連線後重試</div><button type="button" class="pill" data-act="reboot">重試</button>';
@@ -1240,6 +1725,7 @@ async function boot() {
 }
 
 applyTheme(S.theme);
+updateBadge();
 setMapOn(S.mapOn);
 updateClock();
 setInterval(updateClock, 5000);
