@@ -349,6 +349,10 @@ h2 { margin: 0; }
 .urgbar { width: calc(100% - 24px); margin: 8px 12px 0; border-radius: 14px; background: var(--red); color: #fff; border: 0; }
 .urgbar small, .urgbar .chev { color: rgba(255,255,255,.9); }
 .status a { color: var(--accent); }
+.tag { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; font-size: 11px; font-weight: 700; vertical-align: 1px; background: var(--soft); color: var(--muted); border: 1px solid var(--line); }
+.tag.new { background: var(--red); border-color: var(--red); color: #fff; }
+.tag.updated { background: var(--amber); border-color: var(--amber); color: #111; }
+.msg.closed { opacity: .6; }
 </style>
 </head>
 <body>
@@ -391,6 +395,7 @@ h2 { margin: 0; }
     <!-- 首頁 -->
     <section id="view-home" class="view active" aria-label="首頁">
       <button type="button" class="fake-field" data-act="goto-search"><svg class="ic"><use href="#i-search"/></svg>輸入路線號碼，例如 1A、273A</button>
+      <div id="homeWx"></div>
       <div id="homeUrg"></div>
       <div id="homeFav"></div>
       <div id="homeRecent"></div>
@@ -453,8 +458,13 @@ h2 { margin: 0; }
 
     <!-- 訊息與設定 -->
     <section id="view-msg" class="view" aria-label="訊息與設定">
-      <h2 class="sec">緊急消息 · 運輸署</h2>
-      <div id="urgBody" class="list"></div>
+      <div id="wxBody"></div>
+      <div class="head-row">
+        <h2 class="sec">特別交通消息</h2>
+        <div class="acts"><button type="button" class="pill" id="tnBusBtn" data-act="tn-bus" aria-pressed="false">只看巴士</button></div>
+      </div>
+      <div id="tnBody" class="list"></div>
+      <p class="disclaimer">資料來自運輸署「特別交通消息」（DATA.GOV.HK），本頁約每 30 秒自動更新，只供參考。</p>
       <div class="head-row">
         <h2 class="sec">訊息</h2>
         <div class="acts">
@@ -541,13 +551,14 @@ const S = {
   theme: store.get('kmb_theme', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'),
   mapOn: store.get('kmb_map', true),
   tRefresh: null, tTick: null, searchTimer: null,
-  markers: new Map(), needFit: false, pos: null, alerts: new Map(store.get('kmb_alerts', [])), tAlert: null, mapBig: false,
+  markers: new Map(), needFit: false, pos: null, alerts: new Map([].concat(store.get('kmb_alerts', [])).filter(Array.isArray)), tAlert: null, mapBig: false,
   cfg: Object.assign({ alertMin: 3, wake: false, lang: 'tc', op: 50 }, store.get('kmb_cfg', {})),
   msgs: [].concat(store.get('kmb_msgs', [])).filter(m => m && m.title)
 };
 
 let map = null, layer = null, userLayer = null, tileLayer = null;
 S.urg = []; S.urgErr = false; S.urgAt = null;
+S.wx = { warn: [], swt: [], at: null, err: false }; S.tn = []; S.tn1 = []; S.tn2 = []; S.tnOk1 = false; S.tnOk2 = false; S.tnErr = false; S.tnAt = null; S.tnBus = !!store.get('kmb_tn_bus', false);
 const view = $('#view-search');
 const input = $('#routeInput');
 const kb = $('#kb');
@@ -581,7 +592,7 @@ function dirsFor(routeNo, pick) {
 /* ========== 到站時間計算 ========== */
 const packEta = it => {
   const t = it.eta ? Date.parse(it.eta) : NaN;
-  return { ts: Number.isFinite(t) ? t : null, rmk: L(it, 'rmk') };
+  return { ts: Number.isFinite(t) ? t : null, rmk: lx(it, 'rmk') };
 };
 
 function groupEta(items, dir) {
@@ -890,7 +901,7 @@ function refreshSearch() { if (S.cur) loadRoute(S.cur, { silent: true }); }
 
 function renderStopList() {
   $('#stopList').innerHTML = S.curStops.map(s => `
-    <div class="stop" data-seq="${s.seq}">
+    <div class="stop${s.seq === S.selSeq ? ' sel' : ''}" data-seq="${s.seq}">
       <button type="button" class="stop-main" data-act="pick-stop" data-seq="${s.seq}">
         <span class="node">${s.seq}</span>
         <span class="stop-text"><span class="stop-name">${esc(s.info ? s.info.name : '（未知車站）')}</span><span class="stop-sub" data-sub></span></span>
@@ -1209,7 +1220,7 @@ async function loadNb(id) {
     const rows = [...g.values()].map(list => {
       list.sort((a, b) => a.eta_seq - b.eta_seq);
       const f = list[0];
-      return { route: f.route, dir: f.dir, st: String(f.service_type), seq: Number(f.seq), dest: L(f, 'dest'), etas: list.map(packEta) };
+      return { route: f.route, dir: f.dir, st: String(f.service_type), seq: Number(f.seq), dest: lx(f, 'dest'), etas: list.map(packEta) };
     }).sort((a, b) => a.route.localeCompare(b.route, 'en', { numeric: true }) || a.dir.localeCompare(b.dir));
     S.nbData = { id, rows };
     paintNb();
@@ -1239,9 +1250,9 @@ function paintNb() {
 
 function refreshNearby() { if (S.nbOpen) loadNb(S.nbOpen); }
 
-/* ========== 語言 / 按鈕透明度 / 通知 / 緊急消息 ========== */
+/* ========== 語言 / 按鈕透明度 / 通知 / 特別交通消息 ========== */
 let LANG = 'tc';
-const L = (o, k) => o[`${k}_${LANG}`] || o[`${k}_tc`] || '';
+const lx = (o, k) => o[`${k}_${LANG}`] || o[`${k}_tc`] || '';
 const SC_MAP = {};
 ('報报 輸输 線线 號号 碼码 鍵键 盤盘 尋寻 設设 訊讯 頁页 載载 資资 預预 測测 開开 數数 據据 來来 僅仅 參参 請请 車车 佈布 並并 網网 務务 熱热 門门 於于 確确 記记 錄录 統统 計计 啟启 螢荧 較较 電电 餘余 幾几 內内 鐘钟 將将 達达 暫暂 無无 終终 選选 圖图 縮缩 顯显 遠远 複复 製制 轉转 運运 緊紧 語语 鈕钮 態态 過过 個个 裝装 該该 為为 與与 關关 當当 時时 間间 這这 從从 應应 則则 點点 現现 動动 議议 說说 歷历 讀读 戶户 見见 經经 樣样 條条 認认 邊边 導导 進进 發发 實实 帶带 體体 檢检 絡络 連连 試试 後后 讓让 節节 覽览 鎖锁 準准 備备 監监 區区 國国 東东 廣广 總总 標标 傳传 換换 誤误 隨随 舊旧 還还').split(' ').forEach(p => { SC_MAP[p[0]] = p[1]; });
 const EN = {
@@ -1264,7 +1275,10 @@ const EN = {
   '載入路線資料…': 'Loading routes…', '載入班次中…': 'Loading arrivals…', '請用下方鍵盤輸入路線號碼': 'Use the keypad below to enter a route number',
   '載入失敗，請稍後再試': 'Failed to load, please retry', '暫無班次': 'No service', '即將到達': 'Arriving', '此站暫時沒有班次資料': 'No arrival data for this stop',
   '正在取得你的位置…': 'Getting your location…', '（未知車站）': '(Unknown stop)', '暫時沒有與巴士相關的緊急消息': 'No bus-related urgent notices right now',
-  '未能取得運輸署消息，請稍後再試，或': 'Could not load Transport Dept notices. Try again, or ', '到運輸署網站查看': 'open the TD website'
+  '未能取得運輸署消息，請稍後再試，或': 'Could not load Transport Dept notices. Try again, or ', '到運輸署網站查看': 'open the TD website',
+  '運輸署': 'Transport Dept', '特別交通消息': 'Special Traffic News', '詳細天氣警告資訊': 'Weather Warning Details', '特別天氣提示': 'Special Weather Tips', '天氣警告 / 特別天氣提示': 'Weather warnings / Special tips', '目前沒有生效的天氣警告': 'No weather warnings in force', '目前沒有特別天氣提示': 'No special weather tips', '未能取得天文台消息，請稍後再試，或': 'Could not load HKO notices. Try again, or ', '到天文台網站查看': 'open the HKO website', '只看巴士': 'Bus only', '載入中…': 'Loading…',
+  '暫時沒有特別交通消息': 'No special traffic news right now', '暫時沒有與巴士相關的特別交通消息': 'No bus-related traffic news right now',
+  '資料來自運輸署「特別交通消息」（DATA.GOV.HK），本頁約每 30 秒自動更新，只供參考。': 'Source: Transport Department Special Traffic News via DATA.GOV.HK. Refreshes about every 30 seconds; for reference only.'
 };
 const EN_RE = [
   [/^往 (.+)$/, 'To $1'], [/^由 (.+) 開出$/, 'From $1'], [/^更新於 (.+)$/, 'Updated $1'],
@@ -1342,47 +1356,143 @@ function notify(title, body, tag) {
 }
 function saveAlerts() { store.set('kmb_alerts', [...S.alerts]); }
 
-// 運輸署「特別交通消息」，只保留與巴士有關的項目
-const TD_URL = 'https://resource.data.one.gov.hk/td/en/specialtrafficnews.xml';
+// 運輸署「特別交通消息」：第一代及第二代同時讀取、合併顯示
+const TD_V2 = 'https://www.td.gov.hk/tc/special_news/trafficnews.xml';
+const TD_V1 = 'https://resource.data.one.gov.hk/td/en/specialtrafficnews.xml';
+const TD_PAGE = 'https://www.td.gov.hk/tc/special_news/spnews.htm';
 const BUS_RE = /巴士|九巴|\bbus(es)?\b|KMB/i;
-const urgText = x => (LANG === 'en' && x.en) || x.tc;
+const NO = () => ({ tc: '', en: '' });
+const lines = s => String(s || '').split('\n').map(z => z.trim()).filter(Boolean);
+
+async function fetchText(url) {
+  const res = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(15000) : undefined });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}
+function parseXml(txt) {
+  const doc = new DOMParser().parseFromString(txt, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('XML parse error');
+  return [...doc.getElementsByTagName('message')].map(m => k => { const e = m.getElementsByTagName(k)[0]; return e ? e.textContent.trim() : ''; });
+}
+const parseTN2 = txt => parseXml(txt).map(get => {
+  const p = k => ({ tc: get(`${k}_CN`), en: get(`${k}_EN`) });
+  return { id: get('ID'), st: get('INCIDENT_STATUS_EN').toUpperCase(), date: normDate(get('ANNOUNCEMENT_DATE')) || get('ANNOUNCEMENT_DATE'),
+    head: p('INCIDENT_HEADING'), detail: p('INCIDENT_DETAIL'), loc: p('LOCATION'), dir: p('DIRECTION'), status: p('INCIDENT_STATUS'),
+    body: { tc: get('CONTENT_CN'), en: get('CONTENT_EN') } };
+}).filter(x => x.id).sort((a, b) => b.date.localeCompare(a.date) || Number(b.id) - Number(a.id));
+const parseTN1 = txt => parseXml(txt).map(get => {
+  const tc = lines(get('ChinText')), en = lines(get('EngText'));
+  return { id: get('msgID'), st: '', date: normDate(get('ReferenceDate') || get('ReferenceDateTime') || get('ANNOUNCEMENT_DATE')), head: { tc: tc[0] || '', en: en[0] || '' }, detail: NO(), loc: NO(), dir: NO(), status: NO(),
+    body: { tc: tc.slice(1).join('\n'), en: en.slice(1).join('\n') } };
+}).filter(x => x.id);
+
+const tnL = o => (LANG === 'en' && o.en) || o.tc;
+const isBus = x => BUS_RE.test(['head', 'detail', 'loc', 'dir', 'body'].map(k => `${x[k].tc} ${x[k].en}`).join(' '));
+const tnTitle = x => [tnL(x.head), tnL(x.detail)].filter(Boolean).join(' · ');
+const tnWhere = x => [tnL(x.loc), tnL(x.dir)].filter(Boolean).join(' → ');
+const tnWhen = s => { const m = String(s || '').match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/); return m ? `${+m[3]}/${+m[2]} ${m[4]}:${m[5]}` : ''; };
+
+// 第一代日期可能是 20250101 或 2025-01-01 等格式，統一成 ISO 以便排序與顯示
+const normDate = s => { s = String(s || '').trim(); const m = s.match(/^(\d{4})-?(\d{2})-?(\d{2})(?:[T\s]?(\d{2}):?(\d{2}))?/); return m ? `${m[1]}-${m[2]}-${m[3]}T${m[4] || '00'}:${m[5] || '00'}` : ''; };
+let tnBusy = false;
 async function fetchUrgent() {
+  fetchWx();
+  if (tnBusy) return; tnBusy = true;
   try {
-    const res = await fetch(TD_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const doc = new DOMParser().parseFromString(await res.text(), 'text/xml');
-    const g = (m, t) => { const e = m.getElementsByTagName(t)[0]; return e ? e.textContent.trim() : ''; };
-    S.urg = [...doc.getElementsByTagName('message')].map(m => ({ id: g(m, 'msgID'), tc: g(m, 'ChinText'), en: g(m, 'EngText') }))
-      .filter(x => x.id && BUS_RE.test(`${x.tc} ${x.en}`));
-    S.urgAt = new Date(); S.urgErr = false;
-    const seen = store.get('kmb_urg_seen', null); // 第一次只記錄，不會一次過彈出舊消息
-    if (seen) for (const x of S.urg) if (!seen.includes(x.id)) {
-      const t = urgText(x).split('\n').map(z => z.trim()).filter(Boolean);
-      pushMsg('urgent', '緊急消息', t.join('\n').slice(0, 240), `urg|${x.id}`);
-      notify('運輸署緊急消息', (t[0] || '').slice(0, 80), `urg|${x.id}`);
+    // 第一代、第二代同時讀取，互不影響；其中一代失敗時保留該代上次的內容
+    const [r2, r1] = await Promise.allSettled([fetchText(TD_V2), fetchText(TD_V1)]);
+    if (r2.status === 'fulfilled') { try { S.tn2 = parseTN2(r2.value).map(x => ({ ...x, id: '2:' + x.id })); S.tnOk2 = true; } catch (e) { console.error(e); S.tnOk2 = false; } } else { console.error(r2.reason); S.tnOk2 = false; }
+    if (r1.status === 'fulfilled') { try { S.tn1 = parseTN1(r1.value).map(x => ({ ...x, id: '1:' + x.id })); S.tnOk1 = true; } catch (e) { console.error(e); S.tnOk1 = false; } } else { console.error(r1.reason); S.tnOk1 = false; }
+    S.tnErr = !S.tnOk1 && !S.tnOk2;
+    if (!S.tnErr) {
+      S.tnAt = new Date();
+      S.tn = [...S.tn2, ...S.tn1].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+      S.urg = S.tn.filter(isBus);
+      const key = 'kmb_tn_seen', seen = store.get(key, null); // 第一次只記錄，不會一次過彈出舊消息
+      if (Array.isArray(seen)) for (const x of S.urg) if (!seen.includes(x.id)) {
+        const brief = [tnTitle(x), tnWhere(x)].filter(Boolean).join('：');
+        pushMsg('urgent', '特別交通消息', [brief, ...lines(tnL(x.body))].join('\n').slice(0, 240), `tn|${x.id}`);
+        notify('特別交通消息', brief.slice(0, 80), `tn|${x.id}`);
+      }
+      // 合併而非覆蓋：資料暫時為空或消息短暫消失，也不會令舊消息被當成新消息
+      store.set(key, [...new Set([...(Array.isArray(seen) ? seen : []), ...S.urg.map(x => x.id)])].slice(-300));
     }
-    store.set('kmb_urg_seen', S.urg.map(x => x.id));
-  } catch (err) { console.error(err); S.urgErr = true; }
-  renderUrgent(); renderHomeUrg();
+  } finally { tnBusy = false; }
+  renderTraffic(); renderHomeUrg();
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden && S.ready) fetchUrgent(); });
+window.addEventListener('online', () => { if (S.ready) fetchUrgent(); });
+window.addEventListener('focus', () => { if (S.ready) fetchUrgent(); });
 
-function renderUrgent() {
-  const el = $('#urgBody');
-  if (!el) return;
-  if (!S.urg.length) {
-    el.innerHTML = S.urgErr ? '<div class="status">未能取得運輸署消息，請稍後再試，或<a href="https://www.td.gov.hk/tc/special_news/spnews.htm" target="_blank" rel="noopener">到運輸署網站查看</a></div>'
-      : '<div class="status">暫時沒有與巴士相關的緊急消息</div>';
-    return;
-  }
-  el.innerHTML = S.urg.map(x => {
-    const t = urgText(x).split('\n').map(z => z.trim()).filter(Boolean);
-    return `<div class="msg urg"><span class="msg-ic">${ic('bell')}</span><div class="msg-tx"><b>${esc(t[0])}</b><p>${esc(t.slice(1).join('\n').slice(0, 500))}</p><small>${esc('運輸署 · ' + (S.urgAt ? hms(S.urgAt) : ''))}</small></div></div>`;
-  }).join('');
+function tnRow(x) {
+  const bus = isBus(x), st = tnL(x.status), when = tnWhen(x.date);
+  const text = [tnWhere(x), lines(tnL(x.body)).join('\n').slice(0, 500)].filter(Boolean).join('\n');
+  return `<div class="msg ${bus ? 'urg' : ''} ${x.st === 'CLOSED' ? 'closed' : ''}"><span class="msg-ic">${ic(bus ? 'bell' : 'msg')}</span>
+    <div class="msg-tx"><b>${esc(tnTitle(x))}${st ? `<span class="tag ${esc(x.st.toLowerCase())}">${esc(st)}</span>` : ''}</b><p>${esc(text)}</p><small>${esc('運輸署' + (when ? ' · ' + when : ''))}</small></div></div>`;
 }
+const noNews = (m, link) => `<div class="status">${m}${link ? `<a href="${TD_PAGE}" target="_blank" rel="noopener">到運輸署網站查看</a>` : ''}</div>`;
+
+function renderTraffic() {
+  const el = $('#tnBody');
+  if (!el) return;
+  $('#tnBusBtn').setAttribute('aria-pressed', S.tnBus);
+  if (S.tnErr && !S.tnAt) { el.innerHTML = noNews('未能取得運輸署消息，請稍後再試，或', true); return; }
+  if (!S.tnAt) { el.innerHTML = noNews('載入中…'); return; }
+  const list = (S.tnBus ? S.tn.filter(isBus) : S.tn).slice(0, 30);
+  el.innerHTML = list.length ? list.map(tnRow).join('') : noNews(S.tnBus ? '暫時沒有與巴士相關的特別交通消息' : '暫時沒有特別交通消息');
+}
+/* ========== 天氣警告 / 特別天氣提示（香港天文台開放數據） ========== */
+const WX_API = 'https://data.weather.gov.hk/weatherAPI/opendata/weather.php?dataType=';
+const WX_PAGE = 'https://www.hko.gov.hk/tc/wxinfo/currwx/wxwarntoday.htm';
+const asArr = v => Array.isArray(v) ? v : (v == null || v === '' ? [] : [v]);
+const wxLines = v => asArr(v).flatMap(x => String(x).split('\n')).map(z => z.trim()).filter(Boolean);
+let wxBusy = false;
+async function fetchWx() {
+  if (wxBusy) return; wxBusy = true;
+  const lang = LANG === 'en' ? 'en' : 'tc';
+  try {
+    const [w, t] = await Promise.allSettled([
+      fetchText(`${WX_API}warningInfo&lang=${lang}`).then(JSON.parse),
+      fetchText(`${WX_API}swt&lang=${lang}`).then(JSON.parse)
+    ]);
+    if (w.status === 'fulfilled') S.wx.warn = asArr(w.value.details).map(d => ({ code: d.subtype || d.warningStatementCode || '', lines: wxLines(d.contents), time: d.updateTime || '' })).filter(d => d.lines.length);
+    if (t.status === 'fulfilled') S.wx.swt = asArr(t.value.swt).map(d => ({ code: 'SWT', lines: wxLines(d.desc), time: d.updateTime || '' })).filter(d => d.lines.length);
+    S.wx.err = w.status === 'rejected' && t.status === 'rejected';
+    if (!S.wx.err) {
+      S.wx.at = new Date();
+      const items = [...S.wx.warn, ...S.wx.swt], key = 'kmb_wx_seen', seen = store.get(key, null);
+      const idOf = x => `${x.code}|${x.time}|${x.lines[0]}`;
+      if (Array.isArray(seen)) for (const x of items) if (!seen.includes(idOf(x))) {
+        const head = x.code === 'SWT' ? '特別天氣提示' : '天氣警告';
+        pushMsg('alert', head, x.lines.join('\n').slice(0, 240), `wx|${idOf(x)}`);
+        notify(head, x.lines[0].slice(0, 80), `wx|${idOf(x)}`);
+      }
+      store.set(key, [...new Set([...(Array.isArray(seen) ? seen : []), ...items.map(idOf)])].slice(-100));
+    }
+  } finally { wxBusy = false; }
+  renderWx(); renderHomeWx();
+}
+function wxRow(x) {
+  const when = tnWhen(x.time), [head, ...rest] = x.lines;
+  return `<div class="msg urg"><span class="msg-ic">${ic('bell')}</span>
+    <div class="msg-tx"><b>${esc(head)}</b>${rest.length ? `<p>${esc(rest.join('\n'))}</p>` : ''}<small>${esc('天文台' + (when ? ' · ' + when : ''))}</small></div></div>`;
+}
+function renderWx() {
+  const el = $('#wxBody');
+  if (!el) return;
+  const sec = (title, list, none) => `<h2 class="sec">${title}</h2><div class="list">${list.length ? list.map(wxRow).join('')
+    : !S.wx.at ? `<div class="status">${S.wx.err ? '未能取得天文台消息，請稍後再試，或<a href="' + WX_PAGE + '" target="_blank" rel="noopener">到天文台網站查看</a>' : '載入中…'}</div>`
+    : `<div class="status">${none}</div>`}</div>`;
+  el.innerHTML = sec('詳細天氣警告資訊', S.wx.warn, '目前沒有生效的天氣警告') + sec('特別天氣提示', S.wx.swt, '目前沒有特別天氣提示');
+}
+function renderHomeWx() {
+  const el = $('#homeWx'), n = S.wx.warn.length + S.wx.swt.length;
+  if (el) el.innerHTML = n ? `<button type="button" class="card urgbar" data-act="tab" data-tab="msg">${ic('bell')}<span class="card-text"><b>天氣警告 / 特別天氣提示</b><small>${esc(S.wx.warn.concat(S.wx.swt)[0].lines[0].slice(0, 40))}${n > 1 ? ' …' : ''}</small></span>${ic('chev', 'chev')}</button>` : '';
+}
+
 function renderHomeUrg() {
   const el = $('#homeUrg');
-  if (el) el.innerHTML = S.urg.length ? `<button type="button" class="card urgbar" data-act="tab" data-tab="msg">${ic('bell')}<span class="card-text"><b>緊急消息</b><small>${'運輸署有 ' + S.urg.length + ' 則與巴士相關的通知'}</small></span>${ic('chev', 'chev')}</button>` : '';
+  if (el) el.innerHTML = S.urg.length ? `<button type="button" class="card urgbar" data-act="tab" data-tab="msg">${ic('bell')}<span class="card-text"><b>特別交通消息</b><small>${'運輸署有 ' + S.urg.length + ' 則與巴士相關的通知'}</small></span>${ic('chev', 'chev')}</button>` : '';
 }
 
 /* ========== 新功能：到站提醒、趕車提示、分享班次 ========== */
@@ -1509,7 +1619,8 @@ function renderMsgs() {
         <div class="msg-tx"><b>${esc(m.title)}</b><p>${esc(m.body)}</p><small>${esc(ago(m.ts))}</small></div></div>`).join('')
     : '<div class="status">暫時沒有訊息。<br>你收藏或查看過的路線，如有終點站改動、<br>站位轉移或特別班次備註，會顯示在這裡。</div>';
   renderSettings();
-  renderUrgent();
+  renderWx();
+  renderTraffic();
 }
 
 const sw = (act, on, label) => `<button type="button" class="switch" role="switch" data-act="${act}" aria-checked="${on}" aria-label="${label}"></button>`;
@@ -1799,6 +1910,7 @@ document.addEventListener('click', e => {
     case 'map-zout': if (map) map.zoomOut(); break;
     case 'msg-read': markRead(); renderMsgs(); break;
     case 'msg-clear': S.msgs = []; store.set('kmb_msgs', S.msgs); updateBadge(); renderMsgs(); break;
+    case 'tn-bus': S.tnBus = !S.tnBus; store.set('kmb_tn_bus', S.tnBus); renderTraffic(); break;
     case 'cfg-alert': S.cfg.alertMin = Number(d.v); saveCfg(); renderSettings(); toast(`剩 ${S.cfg.alertMin} 分鐘內提醒你`); break;
     case 'cfg-wake': S.cfg.wake = !S.cfg.wake; saveCfg(); setWake(); renderSettings(); break;
     case 'cfg-lang': S.cfg.lang = d.v; saveCfg(); applyLang(); break;
@@ -1855,7 +1967,7 @@ async function boot() {
     setWake();
     setTimeout(checkWatched, 1500);
     syncAlertTimer(); fetchUrgent();
-    if (!S.tUrg) S.tUrg = setInterval(() => { if (!document.hidden) fetchUrgent(); }, 120000);
+    if (!S.tUrg) S.tUrg = setInterval(() => { if (!document.hidden) fetchUrgent(); }, 30000);
   } catch (err) {
     console.error('載入 API 失敗:', err);
     bootEl.innerHTML = '<div>無法載入路線資料<br>請檢查網絡連線後重試</div><button type="button" class="pill" data-act="reboot">重試</button>';
